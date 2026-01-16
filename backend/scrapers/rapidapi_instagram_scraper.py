@@ -62,9 +62,24 @@ class RapidAPIInstagramScraper:
             data = response.json()
             print(f"RapidAPI Response Data: {data}")
 
-            if not data or 'body' not in data:
-                print(f"No profile data found for @{username}")
-                print(f"Response keys: {list(data.keys()) if data else 'No data'}")
+            # Handle different response formats
+            if not data:
+                print(f"No profile data found for @{username} - Empty response")
+                return None
+
+            # Check if API returned an error
+            if isinstance(data, dict) and data.get('success') == False:
+                error_msg = data.get('message', 'Unknown error')
+                print(f"API Error for @{username}: {error_msg}")
+                print(f"This could mean: username doesn't exist, is private, or API can't access it")
+                print(f"Try testing with a known public account like 'instagram' or 'natgeo'")
+                return None
+
+            # Check for expected response format
+            if 'body' not in data:
+                print(f"Unexpected response format for @{username}")
+                print(f"Response keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+                print(f"Full response: {data}")
                 return None
 
             profile = data['body']
