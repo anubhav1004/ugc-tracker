@@ -23,6 +23,7 @@ function TrendingAudio() {
 
   useEffect(() => {
     loadTrendingAudio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [country]);
 
   const loadTrendingAudio = async () => {

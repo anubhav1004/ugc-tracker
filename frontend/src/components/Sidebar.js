@@ -4,7 +4,6 @@ import {
   Home,
   Video,
   Users,
-  Compass,
   Folder,
   Search,
   ChevronDown,

@@ -28,7 +28,6 @@ function AnalyticsDashboard() {
   // Video Stats pagination
   const [displayedCount, setDisplayedCount] = useState(20);
   const [loadingMoreVideos, setLoadingMoreVideos] = useState(false);
-  const [totalVideoCount, setTotalVideoCount] = useState(0);
 
   // Date filter state
   const [dateFilter, setDateFilter] = useState('last7days'); // 'today', 'yesterday', 'last7days', 'custom'

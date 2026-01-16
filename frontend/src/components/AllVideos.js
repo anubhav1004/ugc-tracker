@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { Eye, Heart, MessageCircle, Share2, Bookmark, ExternalLink, Filter } from 'lucide-react';
+import { Eye, Heart, MessageCircle, Share2, ExternalLink, Filter } from 'lucide-react';
 import { useFilters } from '../FilterContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -40,6 +40,7 @@ function AllVideos() {
 
   useEffect(() => {
     fetchVideos(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlatform]);
 
   const fetchCreators = async () => {
