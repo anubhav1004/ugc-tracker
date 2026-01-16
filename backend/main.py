@@ -551,7 +551,8 @@ async def scrape_urls(
         db.commit()
         db.refresh(default_collection)
 
-    async with URLScraper(rapidapi_key=os.getenv('RAPIDAPI_KEY')) as scraper:
+    # URLScraper will automatically use RAPIDAPI_KEY_INSTAGRAM and RAPIDAPI_KEY_TIKTOK
+    async with URLScraper(rapidapi_key=None) as scraper:
         for url in request.urls:
             try:
                 # Detect if this is a profile or video URL
