@@ -117,22 +117,29 @@ class RapidAPIInstagramScraper:
             url = f"{self.base_url}/posts"
             params = {"username": username}
 
+            print(f"Fetching posts from: {url} with username={username}")
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            print(f"Posts Response Status: {response.status_code}")
             response.raise_for_status()
 
             data = response.json()
+            print(f"Posts Response Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            print(f"Posts Response preview: {str(data)[:500]}...")
 
             if not data or 'body' not in data:
-                print(f"No posts found for @{username}")
+                print(f"No posts found for @{username} - 'body' key missing")
+                print(f"Full response: {data}")
                 return []
 
             posts = []
             items = data.get('body', [])[:count]
+            print(f"Found {len(items)} posts to parse")
 
             for item in items:
                 post_data = self._parse_post_data(item, username)
                 if post_data:
                     posts.append(post_data)
+                    print(f"  ✓ Parsed post: {post_data.get('id')} - Likes: {post_data.get('likes')}, Views: {post_data.get('views')}")
 
             return posts
 
@@ -276,19 +283,24 @@ class RapidAPIInstagramScraper:
         username = self.extract_username(profile_url)
         print(f"Fetching profile @{username} via RapidAPI...")
 
-        # Get profile info
+        # Get profile info (optional - we can still get posts without it)
         profile_info = self.get_user_info(username)
         if not profile_info:
-            print(f"Failed to get profile info for @{username}")
-            return {
+            print(f"Warning: Failed to get profile info for @{username}, but continuing to fetch posts...")
+            # Create a basic profile with just username
+            profile_info = {
                 'username': username,
-                'profile': {},
-                'videos': [],
-                'posts': [],
-                'aggregate_stats': {}
+                'nickname': username,
+                'avatar': '',
+                'bio': '',
+                'follower_count': 0,
+                'following_count': 0,
+                'post_count': 0,
+                'is_verified': False,
+                'is_private': False,
             }
 
-        # Get posts
+        # Get posts - this is the critical endpoint with all engagement data
         posts = self.get_user_posts(username, count=limit)
 
         print(f"✓ Got {len(posts)} posts for @{username}")
