@@ -56,12 +56,15 @@ class RapidAPIInstagramScraper:
             params = {"username": username}
 
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            print(f"RapidAPI Response Status: {response.status_code}")
             response.raise_for_status()
 
             data = response.json()
+            print(f"RapidAPI Response Data: {data}")
 
             if not data or 'body' not in data:
                 print(f"No profile data found for @{username}")
+                print(f"Response keys: {list(data.keys()) if data else 'No data'}")
                 return None
 
             profile = data['body']
