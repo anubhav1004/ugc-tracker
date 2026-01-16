@@ -1411,6 +1411,43 @@ async def get_accounts(
     return accounts
 
 
+class AccountCreate(BaseModel):
+    username: str
+    platform: str
+    profile_url: str
+    nickname: Optional[str] = None
+
+
+@app.post("/api/accounts", response_model=AccountResponse)
+async def create_account(account_data: AccountCreate, db: Session = Depends(get_db)):
+    """Create a new account to track"""
+
+    # Check if account already exists
+    existing = db.query(Account).filter(
+        Account.username == account_data.username,
+        Account.platform == account_data.platform
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=409, detail="Account already exists")
+
+    # Create new account
+    account = Account(
+        username=account_data.username,
+        platform=account_data.platform,
+        profile_url=account_data.profile_url,
+        nickname=account_data.nickname or account_data.username,
+        is_active=True,
+        created_at=datetime.utcnow()
+    )
+
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    return account
+
+
 @app.get("/api/accounts/{account_id}", response_model=AccountResponse)
 async def get_account(account_id: int, db: Session = Depends(get_db)):
     """Get a specific account"""
