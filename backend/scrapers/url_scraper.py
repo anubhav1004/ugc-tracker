@@ -14,10 +14,8 @@ class URLScraper:
     def __init__(self, ms_token: Optional[str] = None, rapidapi_key: Optional[str] = None):
         self.ms_token = ms_token
         self.api = None
-        self.rapidapi_key = rapidapi_key or os.getenv('RAPIDAPI_KEY')
-        self.instagram_scraper = None
-        if self.rapidapi_key:
-            self.instagram_scraper = RapidAPIInstagramScraper(api_key=self.rapidapi_key)
+        # Don't pass rapidapi_key to Instagram scraper - let it use env vars directly
+        self.instagram_scraper = RapidAPIInstagramScraper(api_key=None)
 
     async def __aenter__(self):
         self.api = await TikTokApi().__aenter__()
