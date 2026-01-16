@@ -25,7 +25,7 @@ def seed_database(database_url):
     db = SessionLocal()
 
     accounts_data = [
-        # Original accounts
+        # Original TikTok accounts
         {"username": "professorcuriousaapp", "platform": "tiktok", "nickname": "Professor Curious"},
         {"username": "rose.studycorner", "platform": "tiktok", "nickname": "Rose Study Corner"},
         {"username": "piaprofessor", "platform": "tiktok", "nickname": "Pia Professor"},
@@ -33,7 +33,7 @@ def seed_database(database_url):
         {"username": "mari.curious", "platform": "tiktok", "nickname": "Mari Curious"},
         {"username": "max.curious1", "platform": "tiktok", "nickname": "Max Curious"},
         {"username": "karissa.curious", "platform": "tiktok", "nickname": "Karissa Curious"},
-        # New accounts - Chloe
+        # Chloe
         {"username": "midn1ghtnova", "platform": "tiktok", "nickname": "Chloe"},
         {"username": "midn1ghtnova1", "platform": "instagram", "nickname": "Chloe"},
         # Sarah
