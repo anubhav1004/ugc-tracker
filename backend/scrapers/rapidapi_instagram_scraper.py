@@ -17,9 +17,10 @@ class RapidAPIInstagramScraper:
         Initialize scraper with RapidAPI key
         Uses instagram-social API
         """
-        self.api_key = api_key or os.getenv('RAPIDAPI_KEY')
+        # Try Instagram-specific key first, then fall back to general key
+        self.api_key = api_key or os.getenv('RAPIDAPI_KEY_INSTAGRAM') or os.getenv('RAPIDAPI_KEY')
         if not self.api_key:
-            raise ValueError("RapidAPI key is required. Set RAPIDAPI_KEY environment variable or pass api_key parameter.")
+            raise ValueError("RapidAPI key is required. Set RAPIDAPI_KEY_INSTAGRAM or RAPIDAPI_KEY environment variable or pass api_key parameter.")
 
         self.base_url = "https://instagram-social.p.rapidapi.com/api/v1/instagram"
         self.headers = {

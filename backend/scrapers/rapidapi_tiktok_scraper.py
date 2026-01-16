@@ -17,9 +17,10 @@ class RapidAPITikTokScraper:
         Initialize scraper with RapidAPI key
         Get your key from: https://rapidapi.com/tikwm-tikwm-default/api/tiktok-scraper7
         """
-        self.api_key = api_key or os.getenv('RAPIDAPI_KEY')
+        # Try TikTok-specific key first, then fall back to general key
+        self.api_key = api_key or os.getenv('RAPIDAPI_KEY_TIKTOK') or os.getenv('RAPIDAPI_KEY')
         if not self.api_key:
-            raise ValueError("RapidAPI key is required. Set RAPIDAPI_KEY environment variable or pass api_key parameter.")
+            raise ValueError("RapidAPI key is required. Set RAPIDAPI_KEY_TIKTOK or RAPIDAPI_KEY environment variable or pass api_key parameter.")
 
         self.base_url = "https://tiktok-scraper7.p.rapidapi.com"
         self.headers = {
