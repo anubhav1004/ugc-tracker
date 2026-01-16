@@ -1469,6 +1469,69 @@ async def refresh_account(account_id: int, db: Session = Depends(get_db)):
     return account
 
 
+@app.post("/api/admin/seed-accounts")
+async def seed_accounts(db: Session = Depends(get_db)):
+    """Seed database with initial accounts"""
+    accounts_data = [
+        # Original TikTok accounts
+        {"username": "professorcuriousaapp", "platform": "tiktok", "nickname": "Professor Curious"},
+        {"username": "rose.studycorner", "platform": "tiktok", "nickname": "Rose Study Corner"},
+        {"username": "piaprofessor", "platform": "tiktok", "nickname": "Pia Professor"},
+        {"username": "succeedwjoseph", "platform": "tiktok", "nickname": "Succeed with Joseph"},
+        {"username": "mari.curious", "platform": "tiktok", "nickname": "Mari Curious"},
+        {"username": "max.curious1", "platform": "tiktok", "nickname": "Max Curious"},
+        {"username": "karissa.curious", "platform": "tiktok", "nickname": "Karissa Curious"},
+        # Chloe
+        {"username": "midn1ghtnova", "platform": "tiktok", "nickname": "Chloe"},
+        {"username": "midn1ghtnova1", "platform": "instagram", "nickname": "Chloe"},
+        # Sarah
+        {"username": "waithearmeout46", "platform": "tiktok", "nickname": "Sarah"},
+        {"username": "waithearmeout46", "platform": "instagram", "nickname": "Sarah"},
+        # Arshia
+        {"username": "swagdivafineshyt67", "platform": "tiktok", "nickname": "Arshia"},
+        {"username": "swagdivafineshyt67", "platform": "instagram", "nickname": "Arshia"},
+    ]
+
+    added = []
+    skipped = []
+
+    for account_data in accounts_data:
+        # Check if already exists
+        existing = db.query(Account).filter(
+            Account.username == account_data['username'],
+            Account.platform == account_data['platform']
+        ).first()
+
+        if existing:
+            skipped.append(f"{account_data['platform']}/@{account_data['username']}")
+            continue
+
+        # Create profile URL
+        profile_url = f"https://www.{account_data['platform']}.com/@{account_data['username']}"
+
+        # Create new account
+        account = Account(
+            platform=account_data['platform'],
+            username=account_data['username'],
+            profile_url=profile_url,
+            nickname=account_data['nickname'],
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+
+        db.add(account)
+        added.append(f"{account_data['platform']}/@{account_data['username']}")
+
+    db.commit()
+
+    return {
+        "added": added,
+        "skipped": skipped,
+        "total_added": len(added),
+        "total_skipped": len(skipped)
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
