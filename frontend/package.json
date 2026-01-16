@@ -2,6 +2,7 @@
   "name": "social-media-tracker-frontend",
   "version": "1.0.0",
   "private": true,
+  "homepage": ".",
   "dependencies": {
     "autoprefixer": "^10.4.17",
     "axios": "^1.6.5",
