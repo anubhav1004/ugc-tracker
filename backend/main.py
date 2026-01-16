@@ -642,10 +642,15 @@ async def scrape_urls(
                     raise ValueError(f"Could not determine URL type for: {url}")
 
             except Exception as e:
-                errors.append({
+                import traceback
+                error_details = {
                     "url": url,
-                    "error": str(e)
-                })
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                }
+                print(f"ERROR scraping {url}: {str(e)}")
+                print(f"Traceback: {traceback.format_exc()}")
+                errors.append(error_details)
 
     if errors and not results:
         # All URLs failed
