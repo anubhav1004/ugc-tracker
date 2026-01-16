@@ -2,38 +2,27 @@ import asyncio
 import re
 from typing import Dict, Optional
 from datetime import datetime
-from TikTokApi import TikTokApi
 import httpx
 import os
 from scrapers.rapidapi_instagram_scraper import RapidAPIInstagramScraper
+from scrapers.rapidapi_tiktok_scraper import RapidAPITikTokScraper
 
 
 class URLScraper:
     """Scrape video metrics from direct URLs"""
 
     def __init__(self, ms_token: Optional[str] = None, rapidapi_key: Optional[str] = None):
-        self.ms_token = ms_token
-        self.api = None
-        # Don't pass rapidapi_key to Instagram scraper - let it use env vars directly
+        # Don't pass rapidapi_key - let scrapers use env vars directly
         self.instagram_scraper = RapidAPIInstagramScraper(api_key=None)
+        self.tiktok_scraper = RapidAPITikTokScraper(api_key=None)
 
     async def __aenter__(self):
-        self.api = await TikTokApi().__aenter__()
-        if self.ms_token:
-            await self.api.create_sessions(
-                ms_tokens=[self.ms_token],
-                num_sessions=1,
-                sleep_after=3
-            )
+        # No async initialization needed for RapidAPI scrapers
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.api:
-            try:
-                await self.api.__aexit__(exc_type, exc_val, exc_tb)
-            except AttributeError:
-                # TikTok API might not be fully initialized if we only used Instagram
-                pass
+        # No cleanup needed for RapidAPI scrapers
+        pass
 
     def detect_platform(self, url: str) -> str:
         """Detect platform from URL"""
@@ -105,21 +94,17 @@ class URLScraper:
             raise ValueError(f"Unsupported platform or invalid URL: {url}")
 
     async def scrape_tiktok_url(self, url: str) -> Dict:
-        """Scrape TikTok video from URL"""
-        if not self.api:
-            raise RuntimeError("API not initialized")
+        """Scrape TikTok video from URL using RapidAPI"""
+        if not self.tiktok_scraper:
+            raise ValueError("RapidAPI key not configured for TikTok scraping")
 
         try:
-            # Extract video ID from URL
-            video_id = self.extract_tiktok_id(url)
-            if not video_id:
-                raise ValueError("Could not extract TikTok video ID from URL")
+            # Use RapidAPI scraper synchronously (it's not async)
+            video_data = self.tiktok_scraper.get_video_info(url)
+            if not video_data:
+                raise ValueError(f"Could not scrape TikTok video: {url}")
 
-            # Get video data
-            video = self.api.video(id=video_id)
-            video_data = await video.info()
-
-            return self.parse_tiktok_video(video_data)
+            return video_data
 
         except Exception as e:
             print(f"Error scraping TikTok URL: {e}")
@@ -252,63 +237,46 @@ class URLScraper:
         return None
 
     async def scrape_tiktok_profile(self, url: str, limit: int = 100) -> Dict:
-        """Scrape all videos from a TikTok profile"""
-        if not self.api:
-            raise RuntimeError("API not initialized")
+        """Scrape all videos from a TikTok profile using RapidAPI"""
+        if not self.tiktok_scraper:
+            raise ValueError("RapidAPI key not configured for TikTok scraping")
 
         try:
-            # Extract username from URL
-            username = self.extract_tiktok_username(url)
-            if not username:
-                raise ValueError("Could not extract username from TikTok profile URL")
+            # Use RapidAPI scraper synchronously (it's not async)
+            # Note: RapidAPI TikTok scraper has a max limit of 35 posts per request
+            actual_limit = min(limit, 35)
+            profile_data = self.tiktok_scraper.scrape_profile(url, limit=actual_limit)
 
-            # Get user object
-            user = self.api.user(username=username)
-            user_info = await user.info()
-
-            # Get user's videos
-            videos_data = []
-            video_count = 0
-
-            async for video in user.videos(count=limit):
-                try:
-                    parsed_video = self.parse_tiktok_video(video.as_dict)
-                    videos_data.append(parsed_video)
-                    video_count += 1
-                    print(f"Scraped video {video_count}/{limit}: {parsed_video['id']}")
-                except Exception as e:
-                    print(f"Error parsing video: {e}")
-                    continue
-
-                if video_count >= limit:
-                    break
+            videos_data = profile_data.get('videos', [])
 
             # Calculate aggregate statistics
             aggregate_stats = {
                 "total_videos": len(videos_data),
-                "total_views": sum(v["views"] for v in videos_data),
-                "total_likes": sum(v["likes"] for v in videos_data),
-                "total_comments": sum(v["comments"] for v in videos_data),
-                "total_shares": sum(v["shares"] for v in videos_data),
+                "total_views": sum(v.get("views", 0) for v in videos_data),
+                "total_likes": sum(v.get("likes", 0) for v in videos_data),
+                "total_comments": sum(v.get("comments", 0) for v in videos_data),
+                "total_shares": sum(v.get("shares", 0) for v in videos_data),
                 "total_bookmarks": sum(v.get("bookmarks", 0) for v in videos_data),
-                "avg_views": sum(v["views"] for v in videos_data) / len(videos_data) if videos_data else 0,
-                "avg_likes": sum(v["likes"] for v in videos_data) / len(videos_data) if videos_data else 0,
+                "avg_views": sum(v.get("views", 0) for v in videos_data) / len(videos_data) if videos_data else 0,
+                "avg_likes": sum(v.get("likes", 0) for v in videos_data) / len(videos_data) if videos_data else 0,
                 "avg_engagement_rate": (
-                    sum((v["likes"] + v["comments"] + v["shares"]) / max(v["views"], 1) for v in videos_data)
+                    sum((v.get("likes", 0) + v.get("comments", 0) + v.get("shares", 0)) / max(v.get("views", 1), 1) for v in videos_data)
                     / len(videos_data) * 100 if videos_data else 0
                 ),
             }
 
-            # Extract profile info
+            # Extract profile info - RapidAPI scraper doesn't return profile info yet
+            # So we'll create a basic profile from the username
+            username = self.tiktok_scraper.extract_username(url)
             profile = {
-                "username": user_info.get('uniqueId', username),
-                "nickname": user_info.get('nickname', ''),
-                "avatar": user_info.get('avatarThumb', ''),
-                "bio": user_info.get('signature', ''),
-                "follower_count": user_info.get('stats', {}).get('followerCount', 0),
-                "following_count": user_info.get('stats', {}).get('followingCount', 0),
-                "video_count": user_info.get('stats', {}).get('videoCount', 0),
-                "likes_count": user_info.get('stats', {}).get('heartCount', 0),
+                "username": username,
+                "nickname": username,
+                "avatar": "",
+                "bio": "",
+                "follower_count": 0,
+                "following_count": 0,
+                "video_count": len(videos_data),
+                "likes_count": 0,
             }
 
             return {
@@ -319,6 +287,8 @@ class URLScraper:
 
         except Exception as e:
             print(f"Error scraping TikTok profile: {e}")
+            import traceback
+            traceback.print_exc()
             raise
 
     async def scrape_youtube_profile(self, url: str, limit: int = 100) -> Dict:
