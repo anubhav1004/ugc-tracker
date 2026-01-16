@@ -1,24 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { getVideos } from '../api';
+import { getVideos, getAnalyticsTimeseries } from '../api';
 import { TrendingUp } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 
 function Dashboard() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange] = useState(7); // Last 7 days
+  const [analyticsData, setAnalyticsData] = useState([]);
 
   useEffect(() => {
-    loadVideos();
+    loadData();
   }, []);
 
-  const loadVideos = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const videosData = await getVideos({ limit: 100 });
+      const [videosData, analytics] = await Promise.all([
+        getVideos({ limit: 100 }),
+        getAnalyticsTimeseries(timeRange)
+      ]);
       setVideos(videosData);
+      setAnalyticsData(analytics);
     } catch (error) {
-      console.error('Error loading videos:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -172,6 +177,22 @@ function Dashboard() {
     };
   };
 
+  // Calculate conversion funnel data
+  const getConversionFunnelData = () => {
+    const totalViews = analyticsData.reduce((sum, d) => sum + d.views, 0);
+    const totalInstalls = analyticsData.reduce((sum, d) => sum + d.installs, 0);
+    const totalTrials = analyticsData.reduce((sum, d) => sum + d.trial_started, 0);
+
+    const installRate = totalViews > 0 ? ((totalInstalls / totalViews) * 100).toFixed(2) : 0;
+    const trialRate = totalInstalls > 0 ? ((totalTrials / totalInstalls) * 100).toFixed(2) : 0;
+
+    return [
+      { stage: 'Views', value: totalViews, fill: '#8b5cf6' },
+      { stage: 'Installs', value: totalInstalls, fill: '#ec4899' },
+      { stage: 'Trial Started', value: totalTrials, fill: '#10b981' }
+    ];
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -186,6 +207,7 @@ function Dashboard() {
   const viralityDist = getViralityDistribution();
   const durationDist = getDurationDistribution();
   const averages = calculateAverages();
+  const funnelData = getConversionFunnelData();
 
   return (
     <div className="space-y-6">
@@ -253,6 +275,72 @@ function Dashboard() {
             <Line type="monotone" dataKey="views" stroke="#8b5cf6" strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Views vs Installs vs Trial Started Comparison */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Views vs Installs vs Trial Started</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={analyticsData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis
+              dataKey="date"
+              stroke="#9ca3af"
+              tickFormatter={(value) => {
+                const date = new Date(value);
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+              }}
+            />
+            <YAxis stroke="#9ca3af" />
+            <Tooltip
+              labelFormatter={(value) => {
+                const date = new Date(value);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              }}
+              formatter={(value) => formatNumber(value)}
+            />
+            <Legend />
+            <Line type="monotone" dataKey="views" stroke="#8b5cf6" strokeWidth={2} name="Views" />
+            <Line type="monotone" dataKey="installs" stroke="#ec4899" strokeWidth={2} name="Installs" />
+            <Line type="monotone" dataKey="trial_started" stroke="#10b981" strokeWidth={2} name="Trial Started" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Conversion Funnel */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversion Funnel</h3>
+        <ResponsiveContainer width="100%" height={350}>
+          <BarChart data={funnelData} layout="vertical">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis type="number" stroke="#9ca3af" tickFormatter={formatNumber} />
+            <YAxis type="category" dataKey="stage" stroke="#9ca3af" width={120} />
+            <Tooltip formatter={(value) => formatNumber(value)} />
+            <Bar dataKey="value" radius={[0, 8, 8, 0]}>
+              {funnelData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="grid grid-cols-2 gap-4 mt-6">
+          <div className="p-4 bg-purple-50 rounded-lg">
+            <p className="text-sm text-gray-600 mb-1">View to Install Rate</p>
+            <p className="text-2xl font-bold text-purple-900">
+              {funnelData[1]?.value && funnelData[0]?.value
+                ? ((funnelData[1].value / funnelData[0].value) * 100).toFixed(2)
+                : 0}%
+            </p>
+          </div>
+          <div className="p-4 bg-green-50 rounded-lg">
+            <p className="text-sm text-gray-600 mb-1">Install to Trial Rate</p>
+            <p className="text-2xl font-bold text-green-900">
+              {funnelData[2]?.value && funnelData[1]?.value
+                ? ((funnelData[2].value / funnelData[1].value) * 100).toFixed(2)
+                : 0}%
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Most Viral Videos */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  Tooltip, ResponsiveContainer, Legend, Cell
 } from 'recharts';
 import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share2, Bookmark, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
@@ -19,6 +19,7 @@ function AnalyticsDashboard() {
   const [videoStats, setVideoStats] = useState([]);
   const [selectedTab, setSelectedTab] = useState('Averages');
   const [metricType, setMetricType] = useState('total'); // 'total', 'organic', 'ads'
+  const [analyticsData, setAnalyticsData] = useState([]); // For install/trial data
 
   // Video Stats sorting and filtering
   const [sortField, setSortField] = useState('views'); // 'views', 'engagement_rate', 'likes', 'comments', 'shares', 'saves'
@@ -84,7 +85,8 @@ function AnalyticsDashboard() {
         viralityRes,
         durationRes,
         metricsRes,
-        statsRes
+        statsRes,
+        analyticsRes
       ] = await Promise.all([
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}`),
         axios.get(`${API_URL}/api/analytics/views-over-time?days=${days}&metric_type=${metricType}&platform=${platformParam}`),
@@ -92,7 +94,8 @@ function AnalyticsDashboard() {
         axios.get(`${API_URL}/api/analytics/virality-analysis?metric_type=${metricType}&platform=${platformParam}`),
         axios.get(`${API_URL}/api/analytics/duration-analysis?metric_type=${metricType}&platform=${platformParam}`),
         axios.get(`${API_URL}/api/analytics/metrics-breakdown?metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}`)
+        axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}`),
+        axios.get(`${API_URL}/api/analytics/timeseries?days=${days}`)
       ]);
 
       setOverview(overviewRes.data);
@@ -102,6 +105,7 @@ function AnalyticsDashboard() {
       setDurationAnalysis(durationRes.data);
       setMetricsBreakdown(metricsRes.data);
       setVideoStats(statsRes.data);
+      setAnalyticsData(analyticsRes.data);
       setTotalVideoCount(statsRes.data.length); // Approximate total
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -216,6 +220,19 @@ function AnalyticsDashboard() {
     });
 
     return filtered;
+  };
+
+  // Calculate conversion funnel data
+  const getConversionFunnelData = () => {
+    const totalViews = analyticsData.reduce((sum, d) => sum + d.views, 0);
+    const totalInstalls = analyticsData.reduce((sum, d) => sum + d.installs, 0);
+    const totalTrials = analyticsData.reduce((sum, d) => sum + d.trial_started, 0);
+
+    return [
+      { stage: 'Views', value: totalViews, fill: '#8b5cf6' },
+      { stage: 'Installs', value: totalInstalls, fill: '#ec4899' },
+      { stage: 'Trial Started', value: totalTrials, fill: '#10b981' }
+    ];
   };
 
   // Get sorting icon
@@ -620,6 +637,95 @@ function AnalyticsDashboard() {
               />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Views vs Installs vs Trial Started Comparison */}
+      {analyticsData && analyticsData.length > 0 && (
+        <div className="mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Views vs Installs vs Trial Started</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={analyticsData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                <XAxis
+                  dataKey="date"
+                  stroke="#9ca3af"
+                  fontSize={12}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
+                />
+                <YAxis stroke="#9ca3af" fontSize={12} />
+                <Tooltip
+                  labelFormatter={(value) => {
+                    const date = new Date(value);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  }}
+                  formatter={(value) => formatNumber(value)}
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                />
+                <Legend />
+                <Line type="monotone" dataKey="views" stroke="#8b5cf6" strokeWidth={2} name="Views" />
+                <Line type="monotone" dataKey="installs" stroke="#ec4899" strokeWidth={2} name="Installs" />
+                <Line type="monotone" dataKey="trial_started" stroke="#10b981" strokeWidth={2} name="Trial Started" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Conversion Funnel */}
+      {analyticsData && analyticsData.length > 0 && (
+        <div className="mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Conversion Funnel</h2>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={getConversionFunnelData()}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                <XAxis dataKey="stage" stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={formatNumber} />
+                <Tooltip
+                  formatter={(value) => formatNumber(value)}
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {getConversionFunnelData().map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">View to Install Rate</p>
+                <p className="text-2xl font-bold text-purple-900 dark:text-purple-300">
+                  {getConversionFunnelData()[1]?.value && getConversionFunnelData()[0]?.value
+                    ? ((getConversionFunnelData()[1].value / getConversionFunnelData()[0].value) * 100).toFixed(2)
+                    : 0}%
+                </p>
+              </div>
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Install to Trial Rate</p>
+                <p className="text-2xl font-bold text-green-900 dark:text-green-300">
+                  {getConversionFunnelData()[2]?.value && getConversionFunnelData()[1]?.value
+                    ? ((getConversionFunnelData()[2].value / getConversionFunnelData()[1].value) * 100).toFixed(2)
+                    : 0}%
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -54,4 +54,11 @@ export const getStats = async () => {
   return response.data;
 };
 
+export const getAnalyticsTimeseries = async (days = 7) => {
+  const response = await api.get('/api/analytics/timeseries', {
+    params: { days },
+  });
+  return response.data;
+};
+
 export default api;

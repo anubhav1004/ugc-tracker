@@ -46,6 +46,8 @@ class Video(Base):
     shares = Column(Integer, default=0)
     bookmarks = Column(Integer, default=0)  # TikTok bookmarks/saves
     is_spark_ad = Column(Boolean, default=False, nullable=False)  # Track if video is a Spark Ad (paid promotion)
+    installs = Column(Integer, default=0)  # App installs from video
+    trial_started = Column(Integer, default=0)  # Trial subscriptions started from video
 
     # Music/Audio
     music_id = Column(String, index=True)

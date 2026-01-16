@@ -435,6 +435,55 @@ async def get_stats(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/analytics/timeseries")
+async def get_analytics_timeseries(
+    days: int = Query(7, ge=1, le=90),
+    db: Session = Depends(get_db)
+):
+    """Get time series data for views, installs, and trials"""
+    from sqlalchemy import func
+    from datetime import date
+
+    # Get date range
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=days - 1)
+
+    # Query videos within date range
+    videos = db.query(Video).filter(
+        Video.posted_at >= datetime.combine(start_date, datetime.min.time())
+    ).all()
+
+    # Group by date
+    data_by_date = {}
+    for i in range(days):
+        current_date = start_date + timedelta(days=i)
+        data_by_date[current_date] = {
+            'views': 0,
+            'installs': 0,
+            'trial_started': 0
+        }
+
+    # Aggregate data
+    for video in videos:
+        video_date = (video.posted_at or video.scraped_at).date()
+        if video_date in data_by_date:
+            data_by_date[video_date]['views'] += video.views or 0
+            data_by_date[video_date]['installs'] += video.installs or 0
+            data_by_date[video_date]['trial_started'] += video.trial_started or 0
+
+    # Format response
+    result = []
+    for date_key in sorted(data_by_date.keys()):
+        result.append({
+            'date': date_key.strftime('%Y-%m-%d'),
+            'views': data_by_date[date_key]['views'],
+            'installs': data_by_date[date_key]['installs'],
+            'trial_started': data_by_date[date_key]['trial_started']
+        })
+
+    return result
+
+
 @app.get("/api/trending/videos", response_model=List[VideoResponse])
 async def get_trending_videos(
     limit: int = Query(30, ge=1, le=100),
