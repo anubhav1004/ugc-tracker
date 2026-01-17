@@ -237,15 +237,14 @@ class URLScraper:
         return None
 
     async def scrape_tiktok_profile(self, url: str, limit: int = 100) -> Dict:
-        """Scrape all videos from a TikTok profile using RapidAPI"""
+        """Scrape all videos from a TikTok profile using RapidAPI with pagination"""
         if not self.tiktok_scraper:
             raise ValueError("RapidAPI key not configured for TikTok scraping")
 
         try:
-            # Use RapidAPI scraper synchronously (it's not async)
-            # Note: RapidAPI TikTok scraper has a max limit of 35 posts per request
-            actual_limit = min(limit, 35)
-            profile_data = self.tiktok_scraper.scrape_profile(url, limit=actual_limit)
+            # Use RapidAPI scraper with pagination to get all videos (synchronously)
+            # The scraper now supports pagination, so we can fetch all videos
+            profile_data = self.tiktok_scraper.scrape_profile_all(url, max_videos=limit)
 
             videos_data = profile_data.get('videos', [])
 

@@ -184,6 +184,72 @@ class RapidAPITikTokScraper:
             traceback.print_exc()
             return None
 
+    def get_all_user_posts(self, username: str, max_videos: int = 100) -> List[Dict]:
+        """
+        Get ALL posts from a user using pagination
+
+        Args:
+            username: TikTok username (without @)
+            max_videos: Maximum number of videos to fetch (default 100, 0 = unlimited)
+
+        Returns:
+            List of all video data dictionaries
+        """
+        try:
+            all_videos = []
+            cursor = None
+            page = 1
+
+            while True:
+                url = f"{self.base_url}/user/posts"
+                params = {
+                    "unique_id": username,
+                    "count": 35  # API max per request
+                }
+
+                # Add cursor if we have one for pagination
+                if cursor:
+                    params['cursor'] = cursor
+
+                response = requests.get(url, headers=self.headers, params=params, timeout=30)
+                response.raise_for_status()
+
+                data = response.json()
+
+                if data.get('code') != 0:
+                    print(f"API Error on page {page}: {data.get('msg', 'Unknown error')}")
+                    break
+
+                # Get videos from this page
+                video_list = data.get('data', {}).get('videos', [])
+
+                for item in video_list:
+                    video_data = self._parse_video_data(item)
+                    if video_data:
+                        all_videos.append(video_data)
+
+                        # Check if we've reached max_videos limit
+                        if max_videos > 0 and len(all_videos) >= max_videos:
+                            return all_videos[:max_videos]
+
+                # Check if there are more pages
+                has_more = data.get('data', {}).get('hasMore', False)
+                cursor = data.get('data', {}).get('cursor')
+
+                if not has_more or not cursor:
+                    break
+
+                page += 1
+                # Small delay between requests to avoid rate limiting
+                import time
+                time.sleep(0.5)
+
+            return all_videos
+
+        except Exception as e:
+            print(f"Error fetching user posts with pagination: {e}")
+            return []
+
     def scrape_profile(self, profile_url: str, limit: int = 10) -> Dict:
         """
         Scrape a TikTok profile
@@ -199,6 +265,30 @@ class RapidAPITikTokScraper:
         print(f"Fetching profile @{username} via RapidAPI...")
 
         videos = self.get_user_posts(username, count=limit)
+
+        print(f"✓ Got {len(videos)} videos for @{username}")
+
+        return {
+            'username': username,
+            'profile_url': profile_url,
+            'videos': videos
+        }
+
+    def scrape_profile_all(self, profile_url: str, max_videos: int = 100) -> Dict:
+        """
+        Scrape ALL videos from a TikTok profile using pagination
+
+        Args:
+            profile_url: TikTok profile URL
+            max_videos: Maximum number of videos to fetch (default 100, 0 = unlimited)
+
+        Returns:
+            Dict with user info and all videos
+        """
+        username = self.extract_username(profile_url)
+        print(f"Fetching ALL videos from profile @{username} via RapidAPI with pagination...")
+
+        videos = self.get_all_user_posts(username, max_videos=max_videos)
 
         print(f"✓ Got {len(videos)} videos for @{username}")
 
