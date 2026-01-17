@@ -11,6 +11,8 @@ import URLScraper from './components/URLScraper';
 import HashtagSearch from './components/HashtagSearch';
 import TrendingAudio from './components/TrendingAudio';
 
+import MixpanelAnalytics from './components/MixpanelAnalytics';
+
 function App() {
   return (
     <ThemeProvider>
@@ -27,6 +29,7 @@ function App() {
                 <Route path="/all-videos" element={<AllVideos />} />
                 <Route path="/all-accounts" element={<AllAccounts />} />
                 <Route path="/add-accounts" element={<AddAccounts />} />
+                <Route path="/mixpanel" element={<MixpanelAnalytics />} />
                 <Route path="/scrape" element={<URLScraper />} />
                 <Route path="/search" element={<HashtagSearch />} />
                 <Route path="/trending" element={<TrendingAudio />} />

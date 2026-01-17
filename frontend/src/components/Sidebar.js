@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Plus,
   Sun,
-  Moon
+  Moon,
+  BarChart3
 } from 'lucide-react';
 import axios from 'axios';
 import CreateCollectionModal from './CreateCollectionModal';
@@ -49,11 +50,10 @@ function Sidebar() {
   const NavItem = ({ to, icon: Icon, label, badge }) => (
     <Link
       to={to}
-      className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
-        isActive(to)
+      className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${isActive(to)
           ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300 font-medium'
           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-      }`}
+        }`}
     >
       <Icon className="w-4 h-4 mr-3" />
       <span className="flex-1">{label}</span>
@@ -127,6 +127,7 @@ function Sidebar() {
         <NavItem to="/" icon={Home} label="Overview" />
         <NavItem to="/all-videos" icon={Video} label="All Videos" />
         <NavItem to="/all-accounts" icon={Users} label="All Accounts" />
+        <NavItem to="/mixpanel" icon={BarChart3} label="Mixpanel" />
         <NavItem to="/add-accounts" icon={Plus} label="Add Accounts" />
 
         {/* Collections Section */}
@@ -166,11 +167,10 @@ function Sidebar() {
                   <Link
                     key={collection.id}
                     to={`/collections/${collection.id}`}
-                    className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
-                      location.pathname === `/collections/${collection.id}`
+                    className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${location.pathname === `/collections/${collection.id}`
                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
+                      }`}
                   >
                     <div
                       className="w-3 h-3 rounded mr-2"
@@ -205,7 +205,7 @@ function Sidebar() {
           </div>
           <p className="text-xs">Videos tracked this month</p>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
-            <div className="bg-purple-600 dark:bg-purple-500 h-1.5 rounded-full" style={{width: '33%'}}></div>
+            <div className="bg-purple-600 dark:bg-purple-500 h-1.5 rounded-full" style={{ width: '33%' }}></div>
           </div>
         </div>
       </div>
