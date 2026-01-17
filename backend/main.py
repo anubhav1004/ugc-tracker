@@ -579,15 +579,60 @@ def create_or_update_account(db: Session, video: Video):
     return account
 
 
+def normalize_url_or_username(input_str: str) -> str:
+    """
+    Convert username to full URL or return URL as-is
+    Supports formats:
+    - Full URL: https://www.tiktok.com/@username -> returns as-is
+    - Username with @: @username -> https://www.tiktok.com/@username
+    - Username without @: username -> https://www.tiktok.com/@username
+    - Instagram: instagram:username -> https://www.instagram.com/username/
+    """
+    input_str = input_str.strip()
+
+    # If it's already a URL, return as-is
+    if input_str.startswith('http://') or input_str.startswith('https://'):
+        return input_str
+
+    # If it contains domain names, assume it's a URL without protocol
+    if 'tiktok.com' in input_str or 'instagram.com' in input_str or 'youtube.com' in input_str:
+        if not input_str.startswith('http'):
+            return f'https://{input_str}'
+        return input_str
+
+    # Check for platform prefix (instagram:username or ig:username)
+    if input_str.startswith('instagram:') or input_str.startswith('ig:'):
+        username = input_str.split(':', 1)[1].strip().lstrip('@')
+        return f'https://www.instagram.com/{username}/'
+
+    # Check for platform prefix (tiktok:username or tt:username)
+    if input_str.startswith('tiktok:') or input_str.startswith('tt:'):
+        username = input_str.split(':', 1)[1].strip().lstrip('@')
+        return f'https://www.tiktok.com/@{username}'
+
+    # Default: assume it's a TikTok username
+    username = input_str.lstrip('@')
+    return f'https://www.tiktok.com/@{username}'
+
+
 @app.post("/api/scrape/urls", response_model=List[URLScrapeResponse])
 async def scrape_urls(
     request: URLScrapeRequest,
     db: Session = Depends(get_db)
 ):
-    """Scrape video metrics from URLs (supports both individual videos and profile URLs)"""
+    """
+    Scrape video metrics from URLs or usernames
+    Supports:
+    - Full URLs: https://www.tiktok.com/@username
+    - Usernames: username or @username (defaults to TikTok)
+    - Platform prefix: instagram:username or tiktok:username
+    """
 
     if not request.urls:
         raise HTTPException(status_code=400, detail="No URLs provided")
+
+    # Normalize all inputs to full URLs
+    normalized_urls = [normalize_url_or_username(url) for url in request.urls]
 
     results = []
     errors = []
@@ -602,7 +647,7 @@ async def scrape_urls(
 
     # URLScraper will automatically use RAPIDAPI_KEY_INSTAGRAM and RAPIDAPI_KEY_TIKTOK
     async with URLScraper(rapidapi_key=None) as scraper:
-        for url in request.urls:
+        for url in normalized_urls:
             try:
                 # Detect if this is a profile or video URL
                 url_type = scraper.detect_url_type(url)
@@ -702,10 +747,15 @@ async def scrape_urls(
                 errors.append(error_details)
 
     if errors and not results:
-        # All URLs failed
+        # All URLs failed - return detailed error
+        error_messages = [f"{err['url']}: {err['error']}" for err in errors]
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to scrape all URLs. Errors: {errors}"
+            detail={
+                "message": "Failed to scrape all URLs",
+                "errors": error_messages,
+                "hint": "Check if RAPIDAPI_KEY_INSTAGRAM and RAPIDAPI_KEY_TIKTOK environment variables are set correctly"
+            }
         )
 
     # Return results even if some failed

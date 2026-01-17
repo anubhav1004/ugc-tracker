@@ -29,7 +29,7 @@ function AddAccounts() {
     const validUrls = urls.filter((url) => url.trim() !== '');
 
     if (validUrls.length === 0) {
-      setError('Please enter at least one TikTok or Instagram link');
+      setError('Please enter at least one username or link');
       return;
     }
 
@@ -78,10 +78,10 @@ function AddAccounts() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 mb-6">
         <div className="mb-6">
           <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-3">
-            TikTok & Instagram Links
+            TikTok & Instagram Accounts
           </label>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Paste TikTok or Instagram profile/video links to add creators to your dashboard
+            Enter usernames or paste full links - both work! (TikTok default, use "instagram:username" for Instagram)
           </p>
 
           {/* URL Input Fields */}
@@ -92,7 +92,7 @@ function AddAccounts() {
                   type="text"
                   value={url}
                   onChange={(e) => updateUrl(index, e.target.value)}
-                  placeholder={index === 0 ? "https://www.tiktok.com/@username/video/..." : "https://www.instagram.com/username/"}
+                  placeholder={index === 0 ? "username or @username or https://www.tiktok.com/@username" : "instagram:username or https://www.instagram.com/username/"}
                   className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
                 {urls.length > 1 && (
@@ -252,6 +252,12 @@ function AddAccounts() {
       <div className="mt-8 bg-gray-900 text-white rounded-xl p-6">
         <h3 className="font-semibold text-lg mb-3">💡 Pro Tips</h3>
         <ul className="space-y-2 text-sm opacity-90">
+          <li className="flex items-start">
+            <span className="mr-2">•</span>
+            <span>
+              <strong>Quick Entry:</strong> Just type a username (e.g., "karissa.curious") - it defaults to TikTok. For Instagram, use "instagram:username"
+            </span>
+          </li>
           <li className="flex items-start">
             <span className="mr-2">•</span>
             <span>
