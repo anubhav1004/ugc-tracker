@@ -106,7 +106,6 @@ function AnalyticsDashboard() {
       setMetricsBreakdown(metricsRes.data);
       setVideoStats(statsRes.data);
       setAnalyticsData(analyticsRes.data);
-      setTotalVideoCount(statsRes.data.length); // Approximate total
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
