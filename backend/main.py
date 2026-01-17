@@ -437,7 +437,7 @@ async def get_stats(db: Session = Depends(get_db)):
 
 @app.get("/api/analytics/timeseries")
 async def get_analytics_timeseries(
-    days: int = Query(7, ge=1, le=90),
+    days: int = Query(7, ge=1, le=365),
     db: Session = Depends(get_db)
 ):
     """Get time series data for views, installs, and trials"""
@@ -762,21 +762,54 @@ async def scrape_urls(
     return results
 
 
+def apply_collection_filter(query, collection_id: int, db: Session):
+    """Helper function to filter videos by collection"""
+    if not collection_id:
+        return query
+
+    # Get account IDs in the collection
+    account_ids = db.query(AccountCollection.account_id).filter(
+        AccountCollection.collection_id == collection_id
+    ).all()
+    account_ids_list = [aid[0] for aid in account_ids]
+
+    # Get accounts
+    accounts = db.query(Account).filter(Account.id.in_(account_ids_list)).all()
+    account_usernames = [acc.username for acc in accounts]
+
+    # Filter videos by author username
+    if account_usernames:
+        query = query.filter(Video.author_username.in_(account_usernames))
+    else:
+        # No accounts in collection, return empty result
+        query = query.filter(Video.id == None)
+
+    return query
+
+
 @app.get("/api/analytics/overview")
 async def get_analytics_overview(
-    days: int = Query(7, ge=1, le=90),
+    days: int = Query(7, ge=1, le=365),
     metric_type: str = Query("total", regex="^(total|organic|ads)$"),
     platform: str = Query(None),
+    collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get analytics overview for metrics cards"""
 
-    # Calculate date range
+    # Calculate date range based on posted_at
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
-    # Query videos in date range
-    query = db.query(Video).filter(Video.scraped_at >= start_date)
+    # Query videos in date range - filter by posted_at instead of scraped_at
+    query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+
+    # Apply collection filter
+    query = apply_collection_filter(query, collection_id, db)
 
     # Apply platform filter
     if platform:
@@ -822,15 +855,27 @@ async def get_analytics_overview(
 
 @app.get("/api/analytics/views-over-time")
 async def get_views_over_time(
-    days: int = Query(7, ge=1, le=90),
+    days: int = Query(7, ge=1, le=365),
     metric_type: str = Query("total", regex="^(total|organic|ads)$"),
     platform: str = Query(None),
+    collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get cumulative views over time based on video posted dates"""
 
-    # Get all videos with posted_at dates
-    query = db.query(Video).filter(Video.posted_at.isnot(None))
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Get videos with posted_at dates within the specified range
+    query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+
+    # Apply collection filter
+    query = apply_collection_filter(query, collection_id, db)
 
     # Apply platform filter
     if platform:
@@ -848,9 +893,9 @@ async def get_views_over_time(
     if not videos:
         return []
 
-    # Find the date range from actual video data
-    earliest_date = min(v.posted_at for v in videos if v.posted_at)
-    latest_date = max(v.posted_at for v in videos if v.posted_at)
+    # Use the query date range instead of finding from data
+    earliest_date = start_date
+    latest_date = end_date
 
     # Generate all dates in the range
     from datetime import date as date_type
@@ -889,13 +934,27 @@ async def get_views_over_time(
 @app.get("/api/analytics/most-viral")
 async def get_most_viral_videos(
     limit: int = Query(10, ge=1, le=50),
+    days: int = Query(7, ge=1, le=365),
     metric_type: str = Query("total", regex="^(total|organic|ads)$"),
     platform: str = Query(None),
+    collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get most viral videos based on engagement rate"""
 
-    query = db.query(Video)
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Query videos in date range
+    query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+
+    # Apply collection filter
+    query = apply_collection_filter(query, collection_id, db)
 
     # Apply platform filter
     if platform:
@@ -943,13 +1002,27 @@ async def get_most_viral_videos(
 
 @app.get("/api/analytics/virality-analysis")
 async def get_virality_analysis(
+    days: int = Query(7, ge=1, le=365),
     metric_type: str = Query("total", regex="^(total|organic|ads)$"),
     platform: str = Query(None),
+    collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get virality median analysis data"""
 
-    query = db.query(Video)
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Query videos in date range
+    query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+
+    # Apply collection filter
+    query = apply_collection_filter(query, collection_id, db)
 
     # Apply platform filter
     if platform:
@@ -1016,13 +1089,28 @@ async def get_virality_analysis(
 
 @app.get("/api/analytics/duration-analysis")
 async def get_duration_analysis(
+    days: int = Query(7, ge=1, le=365),
     metric_type: str = Query("total", regex="^(total|organic|ads)$"),
     platform: str = Query(None),
+    collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get duration analysis data"""
 
-    query = db.query(Video).filter(Video.duration != None)
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Query videos in date range with duration
+    query = db.query(Video).filter(
+        Video.duration != None,
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+
+    # Apply collection filter
+    query = apply_collection_filter(query, collection_id, db)
 
     # Apply platform filter
     if platform:
@@ -1094,8 +1182,11 @@ async def get_metrics_breakdown(
     one_day_ago = now - timedelta(days=1)
     seven_days_ago = now - timedelta(days=7)
 
-    # Daily videos query
-    daily_query = db.query(Video).filter(Video.scraped_at >= one_day_ago)
+    # Daily videos query - filter by posted_at instead of scraped_at
+    daily_query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= one_day_ago
+    )
     if platform:
         platforms = [p.strip().upper() for p in platform.split(',')]
         daily_query = daily_query.filter(Video.platform.in_(platforms))
@@ -1105,8 +1196,11 @@ async def get_metrics_breakdown(
         daily_query = daily_query.filter(Video.is_spark_ad == True)
     daily_videos = daily_query.all()
 
-    # Weekly videos query
-    weekly_query = db.query(Video).filter(Video.scraped_at >= seven_days_ago)
+    # Weekly videos query - filter by posted_at instead of scraped_at
+    weekly_query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= seven_days_ago
+    )
     if platform:
         platforms = [p.strip().upper() for p in platform.split(',')]
         weekly_query = weekly_query.filter(Video.platform.in_(platforms))
@@ -1146,13 +1240,27 @@ async def get_metrics_breakdown(
 async def get_video_stats(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    days: int = Query(7, ge=1, le=365),
     metric_type: str = Query("total", regex="^(total|organic|ads)$"),
     platform: str = Query(None),
+    collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get video stats with performance indicators"""
 
-    query = db.query(Video)
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=days)
+
+    # Query videos in date range
+    query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+
+    # Apply collection filter
+    query = apply_collection_filter(query, collection_id, db)
 
     # Apply platform filter
     if platform:
@@ -1170,10 +1278,17 @@ async def get_video_stats(
     if not videos:
         return []
 
-    # Calculate average views for baseline (using same filter)
-    all_videos_query = db.query(Video)
+    # Calculate average views for baseline (using same filter and date range)
+    all_videos_query = db.query(Video).filter(
+        Video.posted_at.isnot(None),
+        Video.posted_at >= start_date,
+        Video.posted_at <= end_date
+    )
+    # Apply collection filter
+    all_videos_query = apply_collection_filter(all_videos_query, collection_id, db)
+
     if platform:
-        platforms = [p.strip().upper() for p in platform.split(',')]
+        platforms = [p.strip().lower() for p in platform.split(',')]
         all_videos_query = all_videos_query.filter(Video.platform.in_(platforms))
     if metric_type == "organic":
         all_videos_query = all_videos_query.filter(Video.is_spark_ad == False)
@@ -1408,6 +1523,82 @@ async def remove_video_from_collection(
     db.commit()
 
     return {"message": "Video removed from collection successfully"}
+
+
+@app.get("/api/collections/{collection_id}/accounts")
+async def get_collection_accounts(
+    collection_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get all accounts in a collection"""
+    account_ids = db.query(AccountCollection.account_id).filter(
+        AccountCollection.collection_id == collection_id
+    ).all()
+
+    account_ids_list = [aid[0] for aid in account_ids]
+    accounts = db.query(Account).filter(Account.id.in_(account_ids_list)).all()
+
+    return accounts
+
+
+@app.post("/api/collections/{collection_id}/accounts/{account_id}")
+async def add_account_to_collection(
+    collection_id: int,
+    account_id: int,
+    db: Session = Depends(get_db)
+):
+    """Add an account to a collection"""
+
+    # Check if collection exists
+    collection = db.query(Collection).filter(Collection.id == collection_id).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    # Check if account exists
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Check if already in collection
+    existing = db.query(AccountCollection).filter(
+        AccountCollection.account_id == account_id,
+        AccountCollection.collection_id == collection_id
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Account already in this collection")
+
+    # Add to collection
+    account_collection = AccountCollection(
+        account_id=account_id,
+        collection_id=collection_id
+    )
+    db.add(account_collection)
+    db.commit()
+
+    return {"message": "Account added to collection successfully"}
+
+
+@app.delete("/api/collections/{collection_id}/accounts/{account_id}")
+async def remove_account_from_collection(
+    collection_id: int,
+    account_id: int,
+    db: Session = Depends(get_db)
+):
+    """Remove an account from a collection"""
+
+    account_collection = db.query(AccountCollection).filter(
+        AccountCollection.account_id == account_id,
+        AccountCollection.collection_id == collection_id
+    ).first()
+
+    if not account_collection:
+        raise HTTPException(status_code=404, detail="Account not in this collection")
+
+    db.delete(account_collection)
+    db.commit()
+
+    return {"message": "Account removed from collection successfully"}
 
 
 # ============ ACCOUNTS ENDPOINTS ============

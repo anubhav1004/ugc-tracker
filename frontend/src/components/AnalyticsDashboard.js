@@ -31,7 +31,7 @@ function AnalyticsDashboard() {
   const [loadingMoreVideos, setLoadingMoreVideos] = useState(false);
 
   // Date filter state
-  const [dateFilter, setDateFilter] = useState('last7days'); // 'today', 'yesterday', 'last7days', 'custom'
+  const [dateFilter, setDateFilter] = useState('last7days'); // 'today', 'yesterday', 'last7days', 'last30days', 'alltime', 'custom'
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [showCustomDates, setShowCustomDates] = useState(false);
@@ -52,6 +52,8 @@ function AnalyticsDashboard() {
     if (dateFilter === 'today') return 1;
     if (dateFilter === 'yesterday') return 2;
     if (dateFilter === 'last7days') return 7;
+    if (dateFilter === 'last30days') return 30;
+    if (dateFilter === 'alltime') return 365; // Use 365 days for all-time
     if (dateFilter === 'custom') {
       // Calculate days between custom dates
       if (customDateFrom && customDateTo) {
@@ -405,6 +407,26 @@ function AnalyticsDashboard() {
               Last 7 Days
             </button>
             <button
+              onClick={() => { setDateFilter('last30days'); setShowCustomDates(false); }}
+              className={`px-4 py-2 text-sm rounded-lg transition ${
+                dateFilter === 'last30days'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Last 30 Days
+            </button>
+            <button
+              onClick={() => { setDateFilter('alltime'); setShowCustomDates(false); }}
+              className={`px-4 py-2 text-sm rounded-lg transition ${
+                dateFilter === 'alltime'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              All Time
+            </button>
+            <button
               onClick={() => { setDateFilter('custom'); setShowCustomDates(true); }}
               className={`px-4 py-2 text-sm rounded-lg transition ${
                 dateFilter === 'custom'
@@ -530,6 +552,8 @@ function AnalyticsDashboard() {
               dateFilter === 'today' ? 'Today' :
               dateFilter === 'yesterday' ? 'Yesterday' :
               dateFilter === 'last7days' ? 'Last 7 Days' :
+              dateFilter === 'last30days' ? 'Last 30 Days' :
+              dateFilter === 'alltime' ? 'All Time' :
               'Custom Range'
             }
           />
@@ -540,6 +564,8 @@ function AnalyticsDashboard() {
               dateFilter === 'today' ? 'Today' :
               dateFilter === 'yesterday' ? 'Yesterday' :
               dateFilter === 'last7days' ? 'Last 7 Days' :
+              dateFilter === 'last30days' ? 'Last 30 Days' :
+              dateFilter === 'alltime' ? 'All Time' :
               'Custom Range'
             }
           />
@@ -550,6 +576,8 @@ function AnalyticsDashboard() {
               dateFilter === 'today' ? 'Today' :
               dateFilter === 'yesterday' ? 'Yesterday' :
               dateFilter === 'last7days' ? 'Last 7 Days' :
+              dateFilter === 'last30days' ? 'Last 30 Days' :
+              dateFilter === 'alltime' ? 'All Time' :
               'Custom Range'
             }
           />
@@ -560,6 +588,8 @@ function AnalyticsDashboard() {
               dateFilter === 'today' ? 'Today' :
               dateFilter === 'yesterday' ? 'Yesterday' :
               dateFilter === 'last7days' ? 'Last 7 Days' :
+              dateFilter === 'last30days' ? 'Last 30 Days' :
+              dateFilter === 'alltime' ? 'All Time' :
               'Custom Range'
             }
           />
@@ -570,6 +600,8 @@ function AnalyticsDashboard() {
               dateFilter === 'today' ? 'Today' :
               dateFilter === 'yesterday' ? 'Yesterday' :
               dateFilter === 'last7days' ? 'Last 7 Days' :
+              dateFilter === 'last30days' ? 'Last 30 Days' :
+              dateFilter === 'alltime' ? 'All Time' :
               'Custom Range'
             }
           />
@@ -580,6 +612,8 @@ function AnalyticsDashboard() {
               dateFilter === 'today' ? 'Today' :
               dateFilter === 'yesterday' ? 'Yesterday' :
               dateFilter === 'last7days' ? 'Last 7 Days' :
+              dateFilter === 'last30days' ? 'Last 30 Days' :
+              dateFilter === 'alltime' ? 'All Time' :
               'Custom Range'
             }
           />
