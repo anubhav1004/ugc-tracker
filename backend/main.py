@@ -621,52 +621,79 @@ def normalize_url_or_username(input_str: str) -> str:
     return f'https://www.tiktok.com/@{username}'
 
 
-@app.post("/api/scrape/urls", response_model=List[URLScrapeResponse])
-async def scrape_urls(
-    request: URLScrapeRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Scrape video metrics from URLs or usernames
-    Supports:
-    - Full URLs: https://www.tiktok.com/@username
-    - Usernames: username or @username (defaults to TikTok)
-    - Platform prefix: instagram:username or tiktok:username
-    """
+async def background_scrape_task(normalized_urls: List[str]):
+    """Background task for scraping URLs"""
+    from database import SessionLocal
+    db = SessionLocal()
 
-    if not request.urls:
-        raise HTTPException(status_code=400, detail="No URLs provided")
+    try:
+        results = []
+        errors = []
 
-    # Normalize all inputs to full URLs
-    normalized_urls = [normalize_url_or_username(url) for url in request.urls]
+        # Get or create default collection
+        default_collection = db.query(Collection).filter(Collection.is_default == True).first()
+        if not default_collection:
+            default_collection = Collection(name="Default", is_default=True, description="All tracked videos")
+            db.add(default_collection)
+            db.commit()
+            db.refresh(default_collection)
 
-    results = []
-    errors = []
+        # URLScraper will automatically use RAPIDAPI_KEY_INSTAGRAM and RAPIDAPI_KEY_TIKTOK
+        async with URLScraper(rapidapi_key=None) as scraper:
+            for url in normalized_urls:
+                try:
+                    # Detect if this is a profile or video URL
+                    url_type = scraper.detect_url_type(url)
 
-    # Get or create default collection
-    default_collection = db.query(Collection).filter(Collection.is_default == True).first()
-    if not default_collection:
-        default_collection = Collection(name="Default", is_default=True, description="All tracked videos")
-        db.add(default_collection)
-        db.commit()
-        db.refresh(default_collection)
+                    if url_type == 'profile':
+                        # Scrape all videos from profile
+                        profile_data = await scraper.scrape_profile(url, limit=100)
 
-    # URLScraper will automatically use RAPIDAPI_KEY_INSTAGRAM and RAPIDAPI_KEY_TIKTOK
-    async with URLScraper(rapidapi_key=None) as scraper:
-        for url in normalized_urls:
-            try:
-                # Detect if this is a profile or video URL
-                url_type = scraper.detect_url_type(url)
+                        # Save all videos from profile to database
+                        for video_data in profile_data['videos']:
+                            # Remove internal fields that aren't part of the Video model
+                            video_data.pop('_is_video', None)
 
-                if url_type == 'profile':
-                    # Scrape all videos from profile
-                    profile_data = await scraper.scrape_profile(url, limit=100)
+                            existing = db.query(Video).filter(
+                                Video.id == video_data['id'],
+                                Video.platform == video_data['platform']
+                            ).first()
 
-                    # Save all videos from profile to database
-                    for video_data in profile_data['videos']:
+                            if existing:
+                                # Update existing
+                                for key, value in video_data.items():
+                                    setattr(existing, key, value)
+                                db.commit()
+                                results.append(existing)
+                            else:
+                                # Create new
+                                video = Video(**video_data)
+                                db.add(video)
+                                db.commit()
+                                results.append(video)
+
+                            # Create or update account
+                            account = create_or_update_account(db, results[-1])
+
+                            # Add to default collection if not already there
+                            existing_vc = db.query(VideoCollection).filter(
+                                VideoCollection.video_id == results[-1].id,
+                                VideoCollection.collection_id == default_collection.id
+                            ).first()
+
+                            if not existing_vc:
+                                vc = VideoCollection(video_id=results[-1].id, collection_id=default_collection.id)
+                                db.add(vc)
+                                db.commit()
+
+                    elif url_type == 'video':
+                        # Scrape single video
+                        video_data = await scraper.scrape_url(url)
+
                         # Remove internal fields that aren't part of the Video model
                         video_data.pop('_is_video', None)
 
+                        # Save to database
                         existing = db.query(Video).filter(
                             Video.id == video_data['id'],
                             Video.platform == video_data['platform']
@@ -698,74 +725,61 @@ async def scrape_urls(
                             vc = VideoCollection(video_id=results[-1].id, collection_id=default_collection.id)
                             db.add(vc)
                             db.commit()
-
-                elif url_type == 'video':
-                    # Scrape single video
-                    video_data = await scraper.scrape_url(url)
-
-                    # Remove internal fields that aren't part of the Video model
-                    video_data.pop('_is_video', None)
-
-                    # Save to database
-                    existing = db.query(Video).filter(
-                        Video.id == video_data['id'],
-                        Video.platform == video_data['platform']
-                    ).first()
-
-                    if existing:
-                        # Update existing
-                        for key, value in video_data.items():
-                            setattr(existing, key, value)
-                        db.commit()
-                        results.append(existing)
                     else:
-                        # Create new
-                        video = Video(**video_data)
-                        db.add(video)
-                        db.commit()
-                        results.append(video)
+                        raise ValueError(f"Could not determine URL type for: {url}")
 
-                    # Create or update account
-                    account = create_or_update_account(db, results[-1])
+                except Exception as e:
+                    import traceback
+                    error_details = {
+                        "url": url,
+                        "error": str(e),
+                        "traceback": traceback.format_exc()
+                    }
+                    print(f"ERROR scraping {url}: {str(e)}")
+                    print(f"Traceback: {traceback.format_exc()}")
+                    errors.append(error_details)
 
-                    # Add to default collection if not already there
-                    existing_vc = db.query(VideoCollection).filter(
-                        VideoCollection.video_id == results[-1].id,
-                        VideoCollection.collection_id == default_collection.id
-                    ).first()
+        print(f"Background scraping completed. Results: {len(results)}, Errors: {len(errors)}")
 
-                    if not existing_vc:
-                        vc = VideoCollection(video_id=results[-1].id, collection_id=default_collection.id)
-                        db.add(vc)
-                        db.commit()
-                else:
-                    raise ValueError(f"Could not determine URL type for: {url}")
+    except Exception as e:
+        print(f"Background scraping error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
 
-            except Exception as e:
-                import traceback
-                error_details = {
-                    "url": url,
-                    "error": str(e),
-                    "traceback": traceback.format_exc()
-                }
-                print(f"ERROR scraping {url}: {str(e)}")
-                print(f"Traceback: {traceback.format_exc()}")
-                errors.append(error_details)
 
-    if errors and not results:
-        # All URLs failed - return detailed error
-        error_messages = [f"{err['url']}: {err['error']}" for err in errors]
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": "Failed to scrape all URLs",
-                "errors": error_messages,
-                "hint": "Check if RAPIDAPI_KEY_INSTAGRAM and RAPIDAPI_KEY_TIKTOK environment variables are set correctly"
-            }
-        )
+@app.post("/api/scrape/urls")
+async def scrape_urls(
+    request: URLScrapeRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Scrape video metrics from URLs or usernames (background processing)
+    Supports:
+    - Full URLs: https://www.tiktok.com/@username
+    - Usernames: username or @username (defaults to TikTok)
+    - Platform prefix: instagram:username or tiktok:username
 
-    # Return results even if some failed
-    return results
+    Returns immediately and processes scraping in background.
+    """
+
+    if not request.urls:
+        raise HTTPException(status_code=400, detail="No URLs provided")
+
+    # Normalize all inputs to full URLs
+    normalized_urls = [normalize_url_or_username(url) for url in request.urls]
+
+    # Add background task
+    background_tasks.add_task(background_scrape_task, normalized_urls)
+
+    # Return immediately
+    return {
+        "message": "Scraping started in background",
+        "urls": normalized_urls,
+        "status": "processing"
+    }
 
 
 def apply_collection_filter(query, collection_id: int, db: Session):
