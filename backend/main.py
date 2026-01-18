@@ -549,10 +549,11 @@ def create_or_update_account(db: Session, video: Video):
     ).first()
 
     if account:
-        # Update last_scraped
+        # Update last_scraped and reactivate if deleted
         account.last_scraped = datetime.utcnow()
         account.avatar = video.author_avatar or account.avatar
         account.nickname = video.author_nickname or account.nickname
+        account.is_active = True  # Reactivate account if it was deleted
     else:
         # Create new account
         account = Account(
@@ -564,7 +565,8 @@ def create_or_update_account(db: Session, video: Video):
             total_videos=0,
             total_views=0,
             total_likes=0,
-            total_followers=0
+            total_followers=0,
+            is_active=True
         )
         db.add(account)
 
