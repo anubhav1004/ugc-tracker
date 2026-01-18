@@ -28,6 +28,8 @@ function AnalyticsDashboard() {
   const [selectedTab, setSelectedTab] = useState('Averages');
   const [metricType, setMetricType] = useState('total'); // 'total', 'organic', 'ads'
   const [analyticsData, setAnalyticsData] = useState([]); // For install/trial data
+  const [organicOverview, setOrganicOverview] = useState(null);
+  const [adsOverview, setAdsOverview] = useState(null);
 
   // Video Stats sorting and filtering
   const [sortField, setSortField] = useState('views'); // 'views', 'engagement_rate', 'likes', 'comments', 'shares', 'saves'
@@ -103,7 +105,9 @@ function AnalyticsDashboard() {
         durationRes,
         metricsRes,
         statsRes,
-        analyticsRes
+        analyticsRes,
+        organicRes,
+        adsRes
       ] = await Promise.all([
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/views-over-time?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
@@ -112,7 +116,9 @@ function AnalyticsDashboard() {
         axios.get(`${API_URL}/api/analytics/duration-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/metrics-breakdown?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
-        axios.get(`${API_URL}/api/analytics/timeseries?days=${days}${collectionParam}`)
+        axios.get(`${API_URL}/api/analytics/timeseries?days=${days}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=organic&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=ads&platform=${platformParam}${collectionParam}`)
       ]);
 
       setOverview(overviewRes.data);
@@ -123,6 +129,8 @@ function AnalyticsDashboard() {
       setMetricsBreakdown(metricsRes.data);
       setVideoStats(statsRes.data);
       setAnalyticsData(analyticsRes.data);
+      setOrganicOverview(organicRes.data);
+      setAdsOverview(adsRes.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -553,6 +561,66 @@ function AnalyticsDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Organic vs Spark Ads Comparison */}
+      {organicOverview && adsOverview && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">📊 Organic vs Spark Ads Comparison</h2>
+          <div className="grid grid-cols-2 gap-6">
+            {/* Organic Column */}
+            <div className="border-r border-gray-200 dark:border-gray-700 pr-6">
+              <div className="flex items-center mb-4">
+                <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                <h3 className="text-md font-semibold text-gray-900 dark:text-white">Organic (Non-Paid)</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Views:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(organicOverview.views.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Likes:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(organicOverview.likes.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Comments:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(organicOverview.comments.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Shares:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(organicOverview.shares.total)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Spark Ads Column */}
+            <div className="pl-6">
+              <div className="flex items-center mb-4">
+                <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                <h3 className="text-md font-semibold text-gray-900 dark:text-white">Spark Ads (Paid)</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Views:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(adsOverview.views.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Likes:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(adsOverview.likes.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Comments:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(adsOverview.comments.total)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Shares:</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatNumber(adsOverview.shares.total)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Metric Type Tabs */}
       <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mb-6">
