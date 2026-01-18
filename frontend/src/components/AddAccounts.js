@@ -42,11 +42,17 @@ function AddAccounts() {
         urls: validUrls,
       });
 
-      setResults(response.data);
+      // Backend now returns immediately with status "processing"
+      // Show success message and redirect
+      alert(`Scraping started for ${validUrls.length} account(s)! This may take a few minutes. Check "All Accounts" page to see when it's complete.`);
       setUrls(['']);
+
+      // Redirect to All Accounts page after 2 seconds
+      setTimeout(() => {
+        window.location.href = '/all-accounts';
+      }, 2000);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to add accounts. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
