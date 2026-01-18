@@ -7,11 +7,14 @@ from datetime import datetime, timedelta
 import asyncio
 import os
 from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import logging
 
 # Load environment variables
 load_dotenv()
 
-from database import get_db, init_db, Video, TrendingAudio, Hashtag, SearchHistory, ScrapingJob, Collection, Account, VideoCollection, AccountCollection
+from database import get_db, init_db, Video, VideoHistory, TrendingAudio, Hashtag, SearchHistory, ScrapingJob, Collection, Account, VideoCollection, AccountCollection
 from scrapers.tiktok_scraper import TikTokScraper
 from scrapers.youtube_scraper import YouTubeScraper
 from scrapers.trending_audio_scraper import TrendingAudioScraper
@@ -27,6 +30,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
 
 # Pydantic models
 class SearchRequest(BaseModel):
@@ -587,6 +597,65 @@ def create_or_update_account(db: Session, video: Video):
     return account
 
 
+def save_video_snapshot(db: Session, video: Video):
+    """Save a daily snapshot of video metrics for growth tracking"""
+    from datetime import date as date_type
+
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Check if snapshot already exists for today
+    existing_snapshot = db.query(VideoHistory).filter(
+        VideoHistory.video_id == video.id,
+        VideoHistory.platform == video.platform,
+        VideoHistory.snapshot_date >= today
+    ).first()
+
+    if existing_snapshot:
+        # Update existing snapshot with latest data
+        existing_snapshot.views = video.views
+        existing_snapshot.likes = video.likes
+        existing_snapshot.comments = video.comments
+        existing_snapshot.shares = video.shares
+        existing_snapshot.saves = video.saves
+    else:
+        # Get yesterday's snapshot to calculate growth
+        yesterday = today - timedelta(days=1)
+        previous_snapshot = db.query(VideoHistory).filter(
+            VideoHistory.video_id == video.id,
+            VideoHistory.platform == video.platform,
+            VideoHistory.snapshot_date >= yesterday,
+            VideoHistory.snapshot_date < today
+        ).first()
+
+        # Calculate growth
+        views_growth = 0
+        likes_growth = 0
+        comments_growth = 0
+
+        if previous_snapshot:
+            views_growth = video.views - previous_snapshot.views
+            likes_growth = video.likes - previous_snapshot.likes
+            comments_growth = video.comments - previous_snapshot.comments
+
+        # Create new snapshot
+        snapshot = VideoHistory(
+            video_id=video.id,
+            platform=video.platform,
+            views=video.views,
+            likes=video.likes,
+            comments=video.comments,
+            shares=video.shares,
+            saves=video.saves,
+            views_growth=max(0, views_growth),  # Ensure non-negative
+            likes_growth=max(0, likes_growth),
+            comments_growth=max(0, comments_growth),
+            snapshot_date=today
+        )
+        db.add(snapshot)
+
+    db.commit()
+
+
 def normalize_url_or_username(input_str: str) -> str:
     """
     Convert username to full URL or return URL as-is
@@ -673,6 +742,9 @@ async def background_scrape_task(normalized_urls: List[str]):
                                 db.add(video)
                                 db.commit()
                                 results.append(video)
+
+                            # Save daily snapshot for growth tracking
+                            save_video_snapshot(db, results[-1])
 
                             # Create or update account
                             account = create_or_update_account(db, results[-1])
@@ -951,6 +1023,119 @@ async def get_views_over_time(
         current_date += timedelta(days=1)
 
     return cumulative_data
+
+
+@app.get("/api/analytics/historical-growth")
+async def get_historical_growth(
+    days: int = Query(30, ge=1, le=365),
+    metric_type: str = Query("total", regex="^(total|organic|ads)$"),
+    platform: str = Query(None),
+    collection_id: int = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get true daily growth data from historical snapshots.
+    Returns actual day-by-day view growth, not cumulative totals.
+    """
+
+    # Calculate date range
+    end_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = end_date - timedelta(days=days)
+
+    # Get video IDs to track based on filters
+    video_query = db.query(Video.id)
+
+    # Apply collection filter
+    if collection_id:
+        video_ids_in_collection = db.query(VideoCollection.video_id).filter(
+            VideoCollection.collection_id == collection_id
+        ).all()
+        video_ids = [v[0] for v in video_ids_in_collection]
+        video_query = video_query.filter(Video.id.in_(video_ids))
+
+    # Apply platform filter
+    if platform:
+        platforms = [p.strip().lower() for p in platform.split(',')]
+        video_query = video_query.filter(Video.platform.in_(platforms))
+
+    # Apply metric type filter
+    if metric_type == "organic":
+        video_query = video_query.filter(Video.is_spark_ad == False)
+    elif metric_type == "ads":
+        video_query = video_query.filter(Video.is_spark_ad == True)
+
+    tracked_video_ids = [v[0] for v in video_query.all()]
+
+    if not tracked_video_ids:
+        return []
+
+    # Query historical snapshots
+    snapshots = db.query(VideoHistory).filter(
+        VideoHistory.video_id.in_(tracked_video_ids),
+        VideoHistory.snapshot_date >= start_date,
+        VideoHistory.snapshot_date <= end_date
+    ).order_by(VideoHistory.snapshot_date).all()
+
+    if not snapshots:
+        return []
+
+    # Group snapshots by date and aggregate
+    from collections import defaultdict
+    daily_data = defaultdict(lambda: {
+        'views': 0,
+        'views_growth': 0,
+        'likes': 0,
+        'likes_growth': 0,
+        'comments': 0,
+        'comments_growth': 0,
+        'shares': 0,
+        'saves': 0
+    })
+
+    for snapshot in snapshots:
+        date_key = snapshot.snapshot_date.date()
+        daily_data[date_key]['views'] += snapshot.views
+        daily_data[date_key]['views_growth'] += snapshot.views_growth
+        daily_data[date_key]['likes'] += snapshot.likes
+        daily_data[date_key]['likes_growth'] += snapshot.likes_growth
+        daily_data[date_key]['comments'] += snapshot.comments
+        daily_data[date_key]['comments_growth'] += snapshot.comments_growth
+        daily_data[date_key]['shares'] += snapshot.shares
+        daily_data[date_key]['saves'] += snapshot.saves
+
+    # Generate complete date range
+    result = []
+    current_date = start_date.date()
+    end_date_only = end_date.date()
+
+    while current_date <= end_date_only:
+        data = daily_data.get(current_date, {
+            'views': 0,
+            'views_growth': 0,
+            'likes': 0,
+            'likes_growth': 0,
+            'comments': 0,
+            'comments_growth': 0,
+            'shares': 0,
+            'saves': 0
+        })
+
+        result.append({
+            'date': current_date.strftime('%Y-%m-%d'),
+            'views': data['views'],
+            'views_growth': data['views_growth'],
+            'likes': data['likes'],
+            'likes_growth': data['likes_growth'],
+            'comments': data['comments'],
+            'comments_growth': data['comments_growth'],
+            'shares': data['shares'],
+            'saves': data['saves'],
+            'engagement': data['likes'] + data['comments'] + data['shares'] + data['saves']
+        })
+
+        current_date += timedelta(days=1)
+
+    return result
 
 
 @app.get("/api/analytics/most-viral")
@@ -1868,6 +2053,134 @@ async def seed_accounts(db: Session = Depends(get_db)):
         "skipped": skipped,
         "total_added": len(added),
         "total_skipped": len(skipped)
+    }
+
+
+# ============ DAILY SCRAPING SCHEDULER ============
+
+def daily_scrape_all_accounts():
+    """
+    Daily job to re-scrape all active accounts and save historical snapshots.
+    This runs automatically once per day to track growth over time.
+    """
+    logger.info("Starting daily scrape of all active accounts...")
+
+    from database import SessionLocal
+    db = SessionLocal()
+
+    try:
+        # Get all active accounts
+        accounts = db.query(Account).filter(Account.is_active == True).all()
+        logger.info(f"Found {len(accounts)} active accounts to scrape")
+
+        scraper = URLScraper()
+        total_videos = 0
+
+        for account in accounts:
+            try:
+                # Construct profile URL
+                if account.platform == 'tiktok':
+                    url = f"https://www.tiktok.com/@{account.username}"
+                elif account.platform == 'instagram':
+                    url = f"https://www.instagram.com/{account.username}/"
+                else:
+                    logger.warning(f"Unsupported platform {account.platform} for account {account.username}")
+                    continue
+
+                logger.info(f"Scraping {account.platform}/@{account.username}...")
+
+                # Scrape account
+                videos = scraper.scrape_url(url)
+
+                if videos:
+                    # Process each video
+                    for video_data in videos:
+                        # Check if video exists
+                        video = db.query(Video).filter(Video.id == video_data['id']).first()
+
+                        if video:
+                            # Update existing video metrics
+                            video.views = video_data.get('views', video.views)
+                            video.likes = video_data.get('likes', video.likes)
+                            video.comments = video_data.get('comments', video.comments)
+                            video.shares = video_data.get('shares', video.shares)
+                            video.scraped_at = datetime.utcnow()
+
+                            # Save daily snapshot
+                            save_video_snapshot(db, video)
+                            total_videos += 1
+                        else:
+                            # Create new video if not exists
+                            new_video = Video(**video_data)
+                            db.add(new_video)
+                            db.commit()
+                            db.refresh(new_video)
+
+                            # Save initial snapshot
+                            save_video_snapshot(db, new_video)
+                            total_videos += 1
+
+                    # Update account last_scraped timestamp
+                    account.last_scraped = datetime.utcnow()
+                    db.commit()
+
+                    logger.info(f"✓ Scraped {len(videos)} videos from {account.platform}/@{account.username}")
+                else:
+                    logger.warning(f"No videos found for {account.platform}/@{account.username}")
+
+            except Exception as e:
+                logger.error(f"Error scraping {account.platform}/@{account.username}: {str(e)}")
+                continue
+
+        logger.info(f"Daily scrape completed! Updated {total_videos} videos across {len(accounts)} accounts")
+
+    except Exception as e:
+        logger.error(f"Error in daily scrape job: {str(e)}")
+    finally:
+        db.close()
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and start scheduler on startup"""
+    logger.info("Starting up application...")
+
+    # Initialize database
+    init_db()
+    logger.info("Database initialized")
+
+    # Schedule daily scraping at 2 AM UTC every day
+    scheduler.add_job(
+        daily_scrape_all_accounts,
+        CronTrigger(hour=2, minute=0),  # Run at 2:00 AM UTC daily
+        id='daily_scrape_job',
+        name='Daily account scraping',
+        replace_existing=True
+    )
+
+    # Start the scheduler
+    scheduler.start()
+    logger.info("Scheduler started - daily scraping will run at 2:00 AM UTC")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown scheduler gracefully"""
+    logger.info("Shutting down scheduler...")
+    scheduler.shutdown()
+    logger.info("Scheduler stopped")
+
+
+@app.post("/api/admin/daily-scrape")
+async def trigger_daily_scrape(background_tasks: BackgroundTasks):
+    """
+    Manually trigger the daily scraping job.
+    Use this endpoint to test or force a daily scrape without waiting for the scheduled time.
+    """
+    background_tasks.add_task(daily_scrape_all_accounts)
+    return {
+        "status": "started",
+        "message": "Daily scraping job started in background. This will re-scrape all active accounts and update historical data."
     }
 
 

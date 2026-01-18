@@ -110,7 +110,7 @@ function AnalyticsDashboard() {
         adsRes
       ] = await Promise.all([
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
-        axios.get(`${API_URL}/api/analytics/views-over-time?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/historical-growth?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/most-viral?limit=3&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/virality-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/duration-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
@@ -202,26 +202,29 @@ function AnalyticsDashboard() {
   };
 
   // Calculate daily increments from cumulative data
-  const getDailyData = (cumulativeData) => {
-    return cumulativeData.map((item, index) => {
-      if (index === 0) {
-        return { ...item }; // First day shows total as-is
-      }
-      const previousViews = cumulativeData[index - 1].views;
-      return {
-        ...item,
-        views: item.views - previousViews // Difference from previous day
-      };
-    });
-  };
-
   // Get the appropriate data based on view mode
   const getViewsData = () => {
-    if (viewMode === 'daily') {
-      return getDailyData(viewsOverTime);
+    if (!viewsOverTime || viewsOverTime.length === 0) {
+      return [];
     }
-    // Backend returns cumulative data by default
-    return viewsOverTime;
+
+    if (viewMode === 'daily') {
+      // Use views_growth field directly from historical data
+      return viewsOverTime.map(item => ({
+        date: item.date,
+        views: item.views_growth || 0 // Actual daily growth
+      }));
+    } else {
+      // Cumulative mode: calculate running total from daily growth
+      let cumulativeViews = 0;
+      return viewsOverTime.map(item => {
+        cumulativeViews += (item.views_growth || 0);
+        return {
+          date: item.date,
+          views: cumulativeViews
+        };
+      });
+    }
   };
 
   // Handle sorting for video stats
@@ -746,8 +749,15 @@ function AnalyticsDashboard() {
       {/* Views Over Time Chart */}
       {viewsOverTime && viewsOverTime.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Views Over Time</h2>
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Views Over Time</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {viewMode === 'daily'
+                  ? 'Daily view growth tracked from historical snapshots'
+                  : 'Cumulative views accumulated over time'}
+              </p>
+            </div>
             <div className="flex space-x-2">
               <button
                 onClick={() => setViewMode('daily')}
@@ -757,7 +767,7 @@ function AnalyticsDashboard() {
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
-                Daily
+                Daily Growth
               </button>
               <button
                 onClick={() => setViewMode('cumulative')}
@@ -771,6 +781,34 @@ function AnalyticsDashboard() {
               </button>
             </div>
           </div>
+
+          {/* Growth Rate Indicators */}
+          {viewsOverTime.length > 0 && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-purple-50 dark:bg-purple-900 rounded-lg p-4">
+                <div className="text-sm text-purple-600 dark:text-purple-300 font-medium mb-1">Total Growth</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {formatNumber(viewsOverTime.reduce((sum, item) => sum + (item.views_growth || 0), 0))}
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">views gained in period</div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900 rounded-lg p-4">
+                <div className="text-sm text-blue-600 dark:text-blue-300 font-medium mb-1">Daily Average</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {formatNumber(Math.round(viewsOverTime.reduce((sum, item) => sum + (item.views_growth || 0), 0) / viewsOverTime.length))}
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">views per day</div>
+              </div>
+              <div className="bg-green-50 dark:bg-green-900 rounded-lg p-4">
+                <div className="text-sm text-green-600 dark:text-green-300 font-medium mb-1">Best Day</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {formatNumber(Math.max(...viewsOverTime.map(item => item.views_growth || 0)))}
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">highest daily growth</div>
+              </div>
+            </div>
+          )}
+
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={getViewsData()}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />

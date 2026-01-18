@@ -72,6 +72,35 @@ class Video(Base):
     )
 
 
+class VideoHistory(Base):
+    """Store daily snapshots of video metrics for tracking growth over time"""
+    __tablename__ = "video_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    video_id = Column(String, nullable=False, index=True)
+    platform = Column(String, nullable=False)
+
+    # Snapshot metrics
+    views = Column(BigInteger, default=0)
+    likes = Column(BigInteger, default=0)
+    comments = Column(BigInteger, default=0)
+    shares = Column(BigInteger, default=0)
+    saves = Column(BigInteger, default=0)
+
+    # Calculated growth (vs previous day)
+    views_growth = Column(BigInteger, default=0)
+    likes_growth = Column(BigInteger, default=0)
+    comments_growth = Column(BigInteger, default=0)
+
+    # Timestamp for this snapshot
+    snapshot_date = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_video_snapshot', 'video_id', 'platform', 'snapshot_date'),
+    )
+
+
 class TrendingAudio(Base):
     __tablename__ = "trending_audio"
 
