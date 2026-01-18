@@ -4,11 +4,14 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, Cell
 } from 'recharts';
-import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share2, Bookmark, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share2, Bookmark, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react';
+import { useFilters } from '../FilterContext';
+import AddAccountsToCollectionModal from './AddAccountsToCollectionModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function AnalyticsDashboard() {
+  const { selectedCollection } = useFilters();
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
   const [viewsOverTime, setViewsOverTime] = useState([]);
@@ -41,6 +44,10 @@ function AnalyticsDashboard() {
 
   // Platform filter state - 'all', 'tiktok', 'instagram'
   const [selectedPlatform, setSelectedPlatform] = useState('all');
+
+  // Collection modal state
+  const [showManageAccountsModal, setShowManageAccountsModal] = useState(false);
+  const [currentCollection, setCurrentCollection] = useState(null);
 
   // Handle platform selection
   const handlePlatformChange = (platform) => {
@@ -80,6 +87,9 @@ function AnalyticsDashboard() {
         platformParam = selectedPlatform;
       }
 
+      // Build collection parameter
+      const collectionParam = selectedCollection && selectedCollection !== 'all' ? `&collection_id=${selectedCollection}` : '';
+
       const [
         overviewRes,
         viewsRes,
@@ -90,14 +100,14 @@ function AnalyticsDashboard() {
         statsRes,
         analyticsRes
       ] = await Promise.all([
-        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/views-over-time?days=${days}&metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/most-viral?limit=3&metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/virality-analysis?metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/duration-analysis?metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/metrics-breakdown?metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}`),
-        axios.get(`${API_URL}/api/analytics/timeseries?days=${days}`)
+        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/views-over-time?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/most-viral?limit=3&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/virality-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/duration-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/metrics-breakdown?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/timeseries?days=${days}${collectionParam}`)
       ]);
 
       setOverview(overviewRes.data);
@@ -113,11 +123,28 @@ function AnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [metricType, selectedPlatform, displayedCount, getDaysForFilter]);
+  }, [metricType, selectedPlatform, selectedCollection, displayedCount, getDaysForFilter]);
 
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // Fetch collection details when selectedCollection changes
+  useEffect(() => {
+    const fetchCollection = async () => {
+      if (selectedCollection && selectedCollection !== 'all') {
+        try {
+          const response = await axios.get(`${API_URL}/api/collections/${selectedCollection}`);
+          setCurrentCollection(response.data);
+        } catch (error) {
+          console.error('Error fetching collection:', error);
+        }
+      } else {
+        setCurrentCollection(null);
+      }
+    };
+    fetchCollection();
+  }, [selectedCollection]);
 
   // Load more videos
   const loadMoreVideos = async () => {
@@ -133,8 +160,11 @@ function AnalyticsDashboard() {
         platformParam = selectedPlatform;
       }
 
+      // Build collection parameter
+      const collectionParam = selectedCollection && selectedCollection !== 'all' ? `&collection_id=${selectedCollection}` : '';
+
       const response = await axios.get(
-        `${API_URL}/api/analytics/video-stats?limit=${newCount}&metric_type=${metricType}&platform=${platformParam}`
+        `${API_URL}/api/analytics/video-stats?limit=${newCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`
       );
       setVideoStats(response.data);
       setDisplayedCount(newCount);
@@ -366,9 +396,22 @@ function AnalyticsDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive TikTok performance insights</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            {currentCollection ? `Collection: ${currentCollection.name}` : 'Comprehensive TikTok performance insights'}
+          </p>
+        </div>
+        {currentCollection && (
+          <button
+            onClick={() => setShowManageAccountsModal(true)}
+            className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Manage Accounts
+          </button>
+        )}
       </div>
 
       {/* Date Filter */}
@@ -1055,6 +1098,18 @@ function AnalyticsDashboard() {
           )}
         </div>
       )}
+
+      {/* Manage Accounts Modal */}
+      <AddAccountsToCollectionModal
+        isOpen={showManageAccountsModal}
+        onClose={(shouldRefresh) => {
+          setShowManageAccountsModal(false);
+          if (shouldRefresh) {
+            fetchAllData(); // Refresh analytics when accounts change
+          }
+        }}
+        collection={currentCollection}
+      />
     </div>
   );
 }

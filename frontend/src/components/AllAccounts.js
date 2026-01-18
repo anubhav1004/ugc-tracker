@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Users, Video, Eye, Heart, TrendingUp, CheckCircle } from 'lucide-react';
+import { Users, Video, Eye, Heart, TrendingUp, CheckCircle, Trash2 } from 'lucide-react';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function AllAccounts() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [accountToDelete, setAccountToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchAccounts();
@@ -23,6 +27,37 @@ function AllAccounts() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteClick = (account) => {
+    setAccountToDelete(account);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!accountToDelete) return;
+
+    setDeleting(true);
+    try {
+      await axios.delete(`${API_URL}/api/accounts/${accountToDelete.id}`);
+
+      // Remove from local state
+      setAccounts(accounts.filter(acc => acc.id !== accountToDelete.id));
+
+      // Close modal
+      setDeleteModalOpen(false);
+      setAccountToDelete(null);
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('Failed to delete account. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setAccountToDelete(null);
   };
 
   const formatNumber = (num) => {
@@ -187,17 +222,35 @@ function AllAccounts() {
                 )}
               </div>
 
-              {/* Action Button */}
-              <Link
-                to={`/all-videos?creator=${account.username}`}
-                className="block w-full mt-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium text-center"
-              >
-                View All Videos
-              </Link>
+              {/* Action Buttons */}
+              <div className="flex space-x-2 mt-4">
+                <Link
+                  to={`/all-videos?creator=${account.username}`}
+                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium text-center"
+                >
+                  View All Videos
+                </Link>
+                <button
+                  onClick={() => handleDeleteClick(account)}
+                  className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                  title="Delete account"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        accountName={accountToDelete?.nickname}
+        accountUsername={accountToDelete?.username}
+      />
     </div>
   );
 }

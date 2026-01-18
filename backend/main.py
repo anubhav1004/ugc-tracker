@@ -391,13 +391,19 @@ async def get_creators(
     platform: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """Get list of unique creators/authors from videos"""
+    """Get list of unique creators/authors from videos (only from active accounts)"""
 
     from sqlalchemy import func
 
+    # Join with Account table to filter by is_active
     query = db.query(
         Video.author_username,
         func.max(Video.author_nickname).label('author_nickname')
+    ).join(
+        Account,
+        (Video.author_username == Account.username) & (Video.platform == Account.platform)
+    ).filter(
+        Account.is_active == True  # Only show creators from active accounts
     ).group_by(Video.author_username)
 
     if platform:
@@ -1641,9 +1647,12 @@ async def get_accounts(
         ).all()
         account_ids = [a[0] for a in account_ids]
 
-        query = db.query(Account).filter(Account.id.in_(account_ids))
+        query = db.query(Account).filter(
+            Account.id.in_(account_ids),
+            Account.is_active == True  # Only show active accounts
+        )
     else:
-        query = db.query(Account)
+        query = db.query(Account).filter(Account.is_active == True)  # Only show active accounts
 
     if platform:
         query = query.filter(Account.platform == platform)
@@ -1745,6 +1754,42 @@ async def refresh_account(account_id: int, db: Session = Depends(get_db)):
     db.refresh(account)
 
     return account
+
+
+@app.delete("/api/accounts/{account_id}")
+async def delete_account(
+    account_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Soft delete an account (set is_active = False)
+    This hides the account and its videos from all views
+    """
+    # Find the account
+    account = db.query(Account).filter(Account.id == account_id).first()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Soft delete
+    account.is_active = False
+
+    # Remove from all collections
+    db.query(AccountCollection).filter(AccountCollection.account_id == account_id).delete()
+
+    # Update collection account counts
+    collections = db.query(Collection).all()
+    for collection in collections:
+        collection.account_count = db.query(AccountCollection).filter(
+            AccountCollection.collection_id == collection.id
+        ).count()
+
+    db.commit()
+
+    return {
+        "message": f"Account {account.username} deleted successfully",
+        "account_id": account_id
+    }
 
 
 @app.post("/api/admin/seed-accounts")

@@ -22,7 +22,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 function Sidebar() {
   const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
-  const { selectedPlatform, setSelectedPlatform } = useFilters();
+  const { selectedPlatform, setSelectedPlatform, selectedCollection, setSelectedCollection } = useFilters();
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [collections, setCollections] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -98,8 +98,12 @@ function Sidebar() {
       {/* Filters Section */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="space-y-2">
-          <select className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option>Select Collections</option>
+          <select
+            value={selectedCollection}
+            onChange={(e) => setSelectedCollection(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Collections</option>
             {collections.map((collection) => (
               <option key={collection.id} value={collection.id}>{collection.name}</option>
             ))}
