@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -11,7 +12,11 @@ import AddAccountsToCollectionModal from './AddAccountsToCollectionModal';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function AnalyticsDashboard() {
-  const { selectedCollection } = useFilters();
+  const { name: collectionIdFromUrl } = useParams();
+  const { selectedCollection, setSelectedCollection } = useFilters();
+
+  // Use URL param if available, otherwise use selectedCollection from context
+  const activeCollectionId = collectionIdFromUrl || selectedCollection;
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
   const [viewsOverTime, setViewsOverTime] = useState([]);
@@ -88,7 +93,7 @@ function AnalyticsDashboard() {
       }
 
       // Build collection parameter
-      const collectionParam = selectedCollection && selectedCollection !== 'all' ? `&collection_id=${selectedCollection}` : '';
+      const collectionParam = activeCollectionId && activeCollectionId !== 'all' ? `&collection_id=${activeCollectionId}` : '';
 
       const [
         overviewRes,
@@ -123,18 +128,25 @@ function AnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [metricType, selectedPlatform, selectedCollection, displayedCount, getDaysForFilter]);
+  }, [metricType, selectedPlatform, activeCollectionId, displayedCount, getDaysForFilter]);
 
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Fetch collection details when selectedCollection changes
+  // Sync URL param with context state
+  useEffect(() => {
+    if (collectionIdFromUrl && collectionIdFromUrl !== selectedCollection) {
+      setSelectedCollection(collectionIdFromUrl);
+    }
+  }, [collectionIdFromUrl, selectedCollection, setSelectedCollection]);
+
+  // Fetch collection details when activeCollectionId changes
   useEffect(() => {
     const fetchCollection = async () => {
-      if (selectedCollection && selectedCollection !== 'all') {
+      if (activeCollectionId && activeCollectionId !== 'all') {
         try {
-          const response = await axios.get(`${API_URL}/api/collections/${selectedCollection}`);
+          const response = await axios.get(`${API_URL}/api/collections/${activeCollectionId}`);
           setCurrentCollection(response.data);
         } catch (error) {
           console.error('Error fetching collection:', error);
@@ -144,7 +156,7 @@ function AnalyticsDashboard() {
       }
     };
     fetchCollection();
-  }, [selectedCollection]);
+  }, [activeCollectionId]);
 
   // Load more videos
   const loadMoreVideos = async () => {
@@ -161,7 +173,7 @@ function AnalyticsDashboard() {
       }
 
       // Build collection parameter
-      const collectionParam = selectedCollection && selectedCollection !== 'all' ? `&collection_id=${selectedCollection}` : '';
+      const collectionParam = activeCollectionId && activeCollectionId !== 'all' ? `&collection_id=${activeCollectionId}` : '';
 
       const response = await axios.get(
         `${API_URL}/api/analytics/video-stats?limit=${newCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`
