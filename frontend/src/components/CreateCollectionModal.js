@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -10,6 +10,37 @@ export default function CreateCollectionModal({ isOpen, onClose, onSuccess }) {
   const [color, setColor] = useState('#8B5CF6'); // Purple default
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [allAccounts, setAllAccounts] = useState([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState(new Set());
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAccounts();
+    }
+  }, [isOpen]);
+
+  const fetchAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/accounts?limit=100`);
+      setAllAccounts(response.data);
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  const toggleAccount = (accountId) => {
+    const newSelected = new Set(selectedAccountIds);
+    if (newSelected.has(accountId)) {
+      newSelected.delete(accountId);
+    } else {
+      newSelected.add(accountId);
+    }
+    setSelectedAccountIds(newSelected);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,6 +48,7 @@ export default function CreateCollectionModal({ isOpen, onClose, onSuccess }) {
     setLoading(true);
 
     try {
+      // Create collection
       const response = await axios.post(`${API_URL}/api/collections`, {
         name,
         description,
@@ -24,10 +56,22 @@ export default function CreateCollectionModal({ isOpen, onClose, onSuccess }) {
       });
 
       if (response.status === 200 || response.status === 201) {
+        const collectionId = response.data.id;
+
+        // Add selected accounts to collection
+        for (const accountId of selectedAccountIds) {
+          try {
+            await axios.post(`${API_URL}/api/collections/${collectionId}/accounts/${accountId}`);
+          } catch (err) {
+            console.error(`Error adding account ${accountId} to collection:`, err);
+          }
+        }
+
         // Reset form
         setName('');
         setDescription('');
         setColor('#8B5CF6');
+        setSelectedAccountIds(new Set());
 
         // Notify parent and close
         onSuccess();
@@ -90,7 +134,7 @@ export default function CreateCollectionModal({ isOpen, onClose, onSuccess }) {
             />
           </div>
 
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Color
             </label>
@@ -103,6 +147,68 @@ export default function CreateCollectionModal({ isOpen, onClose, onSuccess }) {
               />
               <span className="text-sm text-gray-600 dark:text-gray-400">{color}</span>
             </div>
+          </div>
+
+          {/* Account Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select Accounts (Optional)
+            </label>
+            {loadingAccounts ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+              </div>
+            ) : allAccounts.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No accounts available</p>
+            ) : (
+              <div className="max-h-60 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-2 space-y-1">
+                {allAccounts.map((account) => {
+                  const isSelected = selectedAccountIds.has(account.id);
+                  return (
+                    <div
+                      key={account.id}
+                      onClick={() => toggleAccount(account.id)}
+                      className={`flex items-center p-2 rounded cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-purple-50 dark:bg-purple-900/20 border border-purple-500'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center mr-2 flex-shrink-0 ${
+                          isSelected
+                            ? 'bg-purple-600'
+                            : 'border-2 border-gray-300 dark:border-gray-600'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      </div>
+
+                      {/* Account Info */}
+                      <img
+                        src={account.avatar || 'https://via.placeholder.com/32'}
+                        alt={account.username}
+                        className="w-8 h-8 rounded-full mr-2 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          @{account.username}
+                        </p>
+                      </div>
+                      <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded uppercase ml-2">
+                        {account.platform}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {selectedAccountIds.size > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                {selectedAccountIds.size} account{selectedAccountIds.size !== 1 ? 's' : ''} selected
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3">
