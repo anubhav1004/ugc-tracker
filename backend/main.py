@@ -2140,6 +2140,90 @@ def daily_scrape_all_accounts():
         db.close()
 
 
+@app.post("/api/admin/fix-missing-accounts")
+async def fix_missing_accounts(db: Session = Depends(get_db)):
+    """
+    Fix missing accounts - Create account entities for videos that don't have associated accounts.
+    This fixes the bug where videos are saved but accounts aren't created during background scraping.
+    """
+    try:
+        # Get all unique (author_username, platform) combinations from videos
+        videos = db.query(Video).all()
+
+        unique_authors = {}
+        for video in videos:
+            if video.author_username:
+                key = (video.author_username, video.platform)
+                if key not in unique_authors:
+                    unique_authors[key] = video
+
+        # Check which ones don't have accounts
+        missing_accounts = []
+        created_accounts = []
+
+        for (username, platform), video in unique_authors.items():
+            account = db.query(Account).filter(
+                Account.username == username,
+                Account.platform == platform
+            ).first()
+
+            if not account:
+                missing_accounts.append((username, platform, video))
+
+        logger.info(f"Found {len(missing_accounts)} accounts that need to be created")
+
+        if missing_accounts:
+            for username, platform, video in missing_accounts:
+                # Get all videos for this account to calculate aggregate stats
+                account_videos = db.query(Video).filter(
+                    Video.author_username == username,
+                    Video.platform == platform
+                ).all()
+
+                total_videos = len(account_videos)
+                total_views = sum(v.views or 0 for v in account_videos)
+                total_likes = sum(v.likes or 0 for v in account_videos)
+
+                # Create account with aggregated stats
+                account = Account(
+                    username=username,
+                    platform=platform,
+                    nickname=video.author_nickname,
+                    avatar=video.author_avatar,
+                    profile_url=f"https://www.tiktok.com/@{username}" if platform == 'tiktok' else f"https://www.instagram.com/{username}/",
+                    total_videos=total_videos,
+                    total_views=total_views,
+                    total_likes=total_likes,
+                    total_followers=0,
+                    is_active=True,
+                    last_scraped=datetime.utcnow()
+                )
+                db.add(account)
+                created_accounts.append({
+                    "username": username,
+                    "platform": platform,
+                    "total_videos": total_videos,
+                    "total_views": total_views
+                })
+
+                logger.info(f"Created account: {platform}/@{username} with {total_videos} videos")
+
+            db.commit()
+            logger.info(f"Successfully created {len(created_accounts)} missing accounts")
+
+        return {
+            "status": "success",
+            "message": f"Created {len(created_accounts)} missing accounts",
+            "accounts_created": len(created_accounts),
+            "created": created_accounts
+        }
+
+    except Exception as e:
+        logger.error(f"Error fixing missing accounts: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and start scheduler on startup"""
