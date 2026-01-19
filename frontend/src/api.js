@@ -61,4 +61,9 @@ export const getAnalyticsTimeseries = async (days = 7) => {
   return response.data;
 };
 
+export const getMixpanelData = async () => {
+  const response = await api.get('/api/analytics/mixpanel');
+  return response.data;
+};
+
 export default api;
