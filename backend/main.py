@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func, distinct
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -720,7 +721,7 @@ async def background_scrape_task(normalized_urls: List[str]):
                         # Scrape all videos from profile
                         profile_data = await scraper.scrape_profile(url, limit=100)
 
-                        # Save all videos from profile to database
+                        # Save all videos from profile to database (batched for performance)
                         for video_data in profile_data['videos']:
                             # Remove internal fields that aren't part of the Video model
                             video_data.pop('_is_video', None)
@@ -734,31 +735,36 @@ async def background_scrape_task(normalized_urls: List[str]):
                                 # Update existing
                                 for key, value in video_data.items():
                                     setattr(existing, key, value)
-                                db.commit()
                                 results.append(existing)
                             else:
                                 # Create new
                                 video = Video(**video_data)
                                 db.add(video)
-                                db.commit()
                                 results.append(video)
 
+                        # Batch commit all video updates/inserts
+                        db.commit()
+
+                        # Process post-video operations
+                        for video in results:
                             # Save daily snapshot for growth tracking
-                            save_video_snapshot(db, results[-1])
+                            save_video_snapshot(db, video)
 
                             # Create or update account
-                            account = create_or_update_account(db, results[-1])
+                            account = create_or_update_account(db, video)
 
                             # Add to default collection if not already there
                             existing_vc = db.query(VideoCollection).filter(
-                                VideoCollection.video_id == results[-1].id,
+                                VideoCollection.video_id == video.id,
                                 VideoCollection.collection_id == default_collection.id
                             ).first()
 
                             if not existing_vc:
-                                vc = VideoCollection(video_id=results[-1].id, collection_id=default_collection.id)
+                                vc = VideoCollection(video_id=video.id, collection_id=default_collection.id)
                                 db.add(vc)
-                                db.commit()
+
+                        # Final commit for snapshots and collections
+                        db.commit()
 
                     elif url_type == 'video':
                         # Scrape single video
@@ -917,9 +923,17 @@ async def get_analytics_overview(
         query = query.filter(Video.is_spark_ad == True)
     # metric_type == "total" means no filter
 
-    videos = query.all()
+    # Use SQL aggregations instead of loading all videos into memory
+    # This is much faster and reduces memory usage
+    aggregates = query.with_entities(
+        func.sum(Video.views).label('total_views'),
+        func.sum(Video.likes).label('total_likes'),
+        func.sum(Video.comments).label('total_comments'),
+        func.sum(Video.shares).label('total_shares'),
+        func.sum(func.coalesce(Video.bookmarks, 0)).label('total_bookmarks')
+    ).first()
 
-    if not videos:
+    if not aggregates or aggregates.total_views is None:
         return {
             "views": {"total": 0, "change": 0},
             "engagement": {"total": 0, "change": 0},
@@ -929,12 +943,12 @@ async def get_analytics_overview(
             "saves": {"total": 0, "change": 0}
         }
 
-    # Calculate totals
-    total_views = sum(v.views for v in videos)
-    total_likes = sum(v.likes for v in videos)
-    total_comments = sum(v.comments for v in videos)
-    total_shares = sum(v.shares for v in videos)
-    total_bookmarks = sum(v.bookmarks or 0 for v in videos)
+    # Calculate totals from SQL aggregation results
+    total_views = aggregates.total_views or 0
+    total_likes = aggregates.total_likes or 0
+    total_comments = aggregates.total_comments or 0
+    total_shares = aggregates.total_shares or 0
+    total_bookmarks = aggregates.total_bookmarks or 0
     total_engagement = total_likes + total_comments + total_shares + total_bookmarks
 
     return {
@@ -1571,16 +1585,29 @@ class CollectionResponse(BaseModel):
 
 @app.get("/api/collections", response_model=List[CollectionResponse])
 async def get_collections(db: Session = Depends(get_db)):
-    """Get all collections"""
-    collections = db.query(Collection).order_by(Collection.is_default.desc(), Collection.created_at.desc()).all()
+    """Get all collections with optimized query (single DB call instead of N+1)"""
+    # Single query with LEFT JOIN and GROUP BY to get counts efficiently
+    collections_query = db.query(
+        Collection,
+        func.count(distinct(VideoCollection.video_id)).label('video_count'),
+        func.count(distinct(AccountCollection.account_id)).label('account_count')
+    ).outerjoin(
+        VideoCollection, Collection.id == VideoCollection.collection_id
+    ).outerjoin(
+        AccountCollection, Collection.id == AccountCollection.collection_id
+    ).group_by(Collection.id).order_by(
+        Collection.is_default.desc(),
+        Collection.created_at.desc()
+    ).all()
 
-    # Update counts
-    for collection in collections:
-        collection.video_count = db.query(VideoCollection).filter(VideoCollection.collection_id == collection.id).count()
-        collection.account_count = db.query(AccountCollection).filter(AccountCollection.collection_id == collection.id).count()
+    # Map results to collection objects with counts
+    result = []
+    for collection_obj, video_count, account_count in collections_query:
+        collection_obj.video_count = video_count
+        collection_obj.account_count = account_count
+        result.append(collection_obj)
 
-    db.commit()
-    return collections
+    return result
 
 
 @app.post("/api/collections", response_model=CollectionResponse)
