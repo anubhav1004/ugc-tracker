@@ -69,6 +69,10 @@ class Video(Base):
     __table_args__ = (
         Index('idx_platform_scraped', 'platform', 'scraped_at'),
         Index('idx_music_platform', 'music_id', 'platform'),
+        # Performance indexes for common queries
+        Index('idx_author_platform', 'author_username', 'platform'),
+        Index('idx_posted_at', 'posted_at'),
+        Index('idx_platform_spark', 'platform', 'is_spark_ad'),
     )
 
 

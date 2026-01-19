@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -11,25 +11,152 @@ import AddAccountsToCollectionModal from './AddAccountsToCollectionModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
+// Utility function for formatting numbers
+const formatNumber = (num) => {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toString();
+};
+
+// Memoized MetricCard component to prevent unnecessary re-renders
+const MetricCard = memo(({ title, value, subtitle, change }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="flex justify-between items-start mb-2">
+      <div>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{title}</p>
+        <p className="text-sm text-purple-600 dark:text-purple-400">{subtitle}</p>
+      </div>
+    </div>
+    <div className="flex items-end justify-between">
+      <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(value)}</p>
+      {change !== undefined && change !== 0 && (
+        <div className={`flex items-center text-sm ${change > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          {change > 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+          {Math.abs(change)}%
+        </div>
+      )}
+    </div>
+  </div>
+));
+
+// Memoized ViralVideoCard component to prevent unnecessary re-renders
+const ViralVideoCard = memo(({ video, rank }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 relative">
+    <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
+      #{rank}
+    </div>
+    <div className="relative cursor-pointer group">
+      <img
+        src={video.thumbnail || 'https://via.placeholder.com/300x400'}
+        alt={video.caption}
+        className="w-full h-72 object-cover"
+      />
+      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+        <a
+          href={video.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="opacity-0 group-hover:opacity-100 bg-white dark:bg-gray-200 rounded-full p-3 transition-all duration-200"
+        >
+          <svg className="w-8 h-8 text-gray-900" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+          </svg>
+        </a>
+      </div>
+    </div>
+    <div className="p-4">
+      <div className="flex items-center mb-2">
+        <img
+          src={video.author_avatar || 'https://via.placeholder.com/40'}
+          alt={video.author_username}
+          className="w-8 h-8 rounded-full mr-2"
+        />
+        <div>
+          <p className="font-semibold text-sm dark:text-white">@{video.author_username}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            uploaded on {video.posted_at ? new Date(video.posted_at).toLocaleDateString() : 'N/A'}
+          </p>
+        </div>
+      </div>
+      <p className="text-sm text-gray-700 dark:text-gray-300 mb-3 line-clamp-2">{video.caption || 'No caption'}</p>
+
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between items-center">
+          <span className="flex items-center text-gray-600 dark:text-gray-400">
+            <Eye className="w-4 h-4 mr-1" /> Views
+          </span>
+          <span className="font-semibold dark:text-white">{formatNumber(video.views)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center text-gray-600 dark:text-gray-400">
+            <Heart className="w-4 h-4 mr-1" /> Engagement
+          </span>
+          <span className="font-semibold dark:text-white">{formatNumber(video.engagement)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center text-gray-600 dark:text-gray-400">
+            <Heart className="w-4 h-4 mr-1" /> Likes
+          </span>
+          <span className="font-semibold dark:text-white">{formatNumber(video.likes)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center text-gray-600 dark:text-gray-400">
+            <MessageCircle className="w-4 h-4 mr-1" /> Comments
+          </span>
+          <span className="font-semibold dark:text-white">{formatNumber(video.comments)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center text-gray-600 dark:text-gray-400">
+            <Share2 className="w-4 h-4 mr-1" /> Shares
+          </span>
+          <span className="font-semibold dark:text-white">{formatNumber(video.shares)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="flex items-center text-gray-600 dark:text-gray-400">
+            <Bookmark className="w-4 h-4 mr-1" /> Bookmarks
+          </span>
+          <span className="font-semibold dark:text-white">{formatNumber(video.bookmarks || 0)}</span>
+        </div>
+        <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+          <span className="text-gray-600 dark:text-gray-400">Engagement Rate</span>
+          <span className="font-semibold text-purple-600 dark:text-purple-400">{video.engagement_rate}%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+));
+
 function AnalyticsDashboard() {
   const { name: collectionIdFromUrl } = useParams();
   const { selectedCollection, setSelectedCollection } = useFilters();
 
   // Use URL param if available, otherwise use selectedCollection from context
   const activeCollectionId = collectionIdFromUrl || selectedCollection;
+
+  // Loading state
   const [loading, setLoading] = useState(true);
-  const [overview, setOverview] = useState(null);
-  const [viewsOverTime, setViewsOverTime] = useState([]);
-  const [mostViral, setMostViral] = useState([]);
-  const [viralityAnalysis, setViralityAnalysis] = useState(null);
-  const [durationAnalysis, setDurationAnalysis] = useState([]);
-  const [metricsBreakdown, setMetricsBreakdown] = useState(null);
-  const [videoStats, setVideoStats] = useState([]);
+
+  // Consolidated data state - all API-fetched data grouped together
+  const [data, setData] = useState({
+    overview: null,
+    viewsOverTime: [],
+    mostViral: [],
+    viralityAnalysis: null,
+    durationAnalysis: [],
+    metricsBreakdown: null,
+    videoStats: [],
+    analyticsData: [],
+    organicOverview: null,
+    adsOverview: null
+  });
+
+  // Destructure for backward compatibility
+  const { overview, viewsOverTime, mostViral, viralityAnalysis, durationAnalysis,
+          metricsBreakdown, videoStats, analyticsData, organicOverview, adsOverview } = data;
+
+  // UI state
   const [selectedTab, setSelectedTab] = useState('Averages');
   const [metricType, setMetricType] = useState('total'); // 'total', 'organic', 'ads'
-  const [analyticsData, setAnalyticsData] = useState([]); // For install/trial data
-  const [organicOverview, setOrganicOverview] = useState(null);
-  const [adsOverview, setAdsOverview] = useState(null);
 
   // Video Stats sorting and filtering
   const [sortField, setSortField] = useState('views'); // 'views', 'engagement_rate', 'likes', 'comments', 'shares', 'saves'
@@ -121,16 +248,19 @@ function AnalyticsDashboard() {
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=ads&platform=${platformParam}${collectionParam}`)
       ]);
 
-      setOverview(overviewRes.data);
-      setViewsOverTime(viewsRes.data);
-      setMostViral(viralRes.data);
-      setViralityAnalysis(viralityRes.data);
-      setDurationAnalysis(durationRes.data);
-      setMetricsBreakdown(metricsRes.data);
-      setVideoStats(statsRes.data);
-      setAnalyticsData(analyticsRes.data);
-      setOrganicOverview(organicRes.data);
-      setAdsOverview(adsRes.data);
+      // Update all data in one state update to reduce re-renders
+      setData({
+        overview: overviewRes.data,
+        viewsOverTime: viewsRes.data,
+        mostViral: viralRes.data,
+        viralityAnalysis: viralityRes.data,
+        durationAnalysis: durationRes.data,
+        metricsBreakdown: metricsRes.data,
+        videoStats: statsRes.data,
+        analyticsData: analyticsRes.data,
+        organicOverview: organicRes.data,
+        adsOverview: adsRes.data
+      });
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -186,7 +316,7 @@ function AnalyticsDashboard() {
       const response = await axios.get(
         `${API_URL}/api/analytics/video-stats?limit=${newCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`
       );
-      setVideoStats(response.data);
+      setData(prev => ({ ...prev, videoStats: response.data }));
       setDisplayedCount(newCount);
     } catch (error) {
       console.error('Error loading more videos:', error);
@@ -195,15 +325,9 @@ function AnalyticsDashboard() {
     }
   };
 
-  const formatNumber = (num) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
-
   // Calculate daily increments from cumulative data
-  // Get the appropriate data based on view mode
-  const getViewsData = () => {
+  // Get the appropriate data based on view mode (memoized for performance)
+  const viewsChartData = useMemo(() => {
     if (!viewsOverTime || viewsOverTime.length === 0) {
       return [];
     }
@@ -225,7 +349,7 @@ function AnalyticsDashboard() {
         };
       });
     }
-  };
+  }, [viewsOverTime, viewMode]);
 
   // Handle sorting for video stats
   const handleSort = (field) => {
@@ -244,8 +368,8 @@ function AnalyticsDashboard() {
     setSparkAdFilter(newFilter);
   };
 
-  // Get sorted and filtered video stats
-  const getSortedAndFilteredVideoStats = () => {
+  // Get sorted and filtered video stats (memoized for performance)
+  const sortedFilteredVideos = useMemo(() => {
     let filtered = [...videoStats];
 
     // Apply Spark Ads filter
@@ -274,7 +398,7 @@ function AnalyticsDashboard() {
     });
 
     return filtered;
-  };
+  }, [videoStats, sparkAdFilter, sortField, sortDirection]);
 
   // Calculate conversion funnel data
   const getConversionFunnelData = () => {
@@ -298,112 +422,6 @@ function AnalyticsDashboard() {
       ? <ArrowUp className="w-4 h-4 text-purple-600 dark:text-purple-400" />
       : <ArrowDown className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
   };
-
-  const MetricCard = ({ title, value, subtitle, change }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">{title}</p>
-          <p className="text-sm text-purple-600 dark:text-purple-400">{subtitle}</p>
-        </div>
-      </div>
-      <div className="flex items-end justify-between">
-        <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(value)}</p>
-        {change !== undefined && change !== 0 && (
-          <div className={`flex items-center text-sm ${change > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-            {change > 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-            {Math.abs(change)}%
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const ViralVideoCard = ({ video, rank }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 relative">
-      <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
-        #{rank}
-      </div>
-      <div className="relative cursor-pointer group">
-        <img
-          src={video.thumbnail || 'https://via.placeholder.com/300x400'}
-          alt={video.caption}
-          className="w-full h-72 object-cover"
-        />
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-          <a
-            href={video.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="opacity-0 group-hover:opacity-100 bg-white dark:bg-gray-200 rounded-full p-3 transition-all duration-200"
-          >
-            <svg className="w-8 h-8 text-gray-900" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-            </svg>
-          </a>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="flex items-center mb-2">
-          <img
-            src={video.author_avatar || 'https://via.placeholder.com/40'}
-            alt={video.author_username}
-            className="w-8 h-8 rounded-full mr-2"
-          />
-          <div>
-            <p className="font-semibold text-sm dark:text-white">@{video.author_username}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              uploaded on {video.posted_at ? new Date(video.posted_at).toLocaleDateString() : 'N/A'}
-            </p>
-          </div>
-        </div>
-        <p className="text-sm text-gray-700 dark:text-gray-300 mb-3 line-clamp-2">{video.caption || 'No caption'}</p>
-
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="flex items-center text-gray-600 dark:text-gray-400">
-              <Eye className="w-4 h-4 mr-1" /> Views
-            </span>
-            <span className="font-semibold dark:text-white">{formatNumber(video.views)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="flex items-center text-gray-600 dark:text-gray-400">
-              <Heart className="w-4 h-4 mr-1" /> Engagement
-            </span>
-            <span className="font-semibold dark:text-white">{formatNumber(video.engagement)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="flex items-center text-gray-600 dark:text-gray-400">
-              <Heart className="w-4 h-4 mr-1" /> Likes
-            </span>
-            <span className="font-semibold dark:text-white">{formatNumber(video.likes)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="flex items-center text-gray-600 dark:text-gray-400">
-              <MessageCircle className="w-4 h-4 mr-1" /> Comments
-            </span>
-            <span className="font-semibold dark:text-white">{formatNumber(video.comments)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="flex items-center text-gray-600 dark:text-gray-400">
-              <Share2 className="w-4 h-4 mr-1" /> Shares
-            </span>
-            <span className="font-semibold dark:text-white">{formatNumber(video.shares)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="flex items-center text-gray-600 dark:text-gray-400">
-              <Bookmark className="w-4 h-4 mr-1" /> Bookmarks
-            </span>
-            <span className="font-semibold dark:text-white">{formatNumber(video.bookmarks || 0)}</span>
-          </div>
-          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
-            <span className="text-gray-600 dark:text-gray-400">Engagement Rate</span>
-            <span className="font-semibold text-purple-600 dark:text-purple-400">{video.engagement_rate}%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (
@@ -810,7 +828,7 @@ function AnalyticsDashboard() {
           )}
 
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={getViewsData()}>
+            <LineChart data={viewsChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
               <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
               <YAxis stroke="#9ca3af" fontSize={12} />
@@ -1144,7 +1162,7 @@ function AnalyticsDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {getSortedAndFilteredVideoStats().map((video) => (
+                {sortedFilteredVideos.map((video) => (
                   <tr key={video.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="py-3 px-4">
                       <div className="flex items-center">
