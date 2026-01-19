@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Cell
+  Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share2, Bookmark, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react';
 import { useFilters } from '../FilterContext';
@@ -135,6 +135,7 @@ function AnalyticsDashboard() {
 
   // Loading state
   const [loading, setLoading] = useState(true);
+  const [mixpanelLoading, setMixpanelLoading] = useState(true);
 
   // Consolidated data state - all API-fetched data grouped together
   const [data, setData] = useState({
@@ -235,8 +236,7 @@ function AnalyticsDashboard() {
         axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/timeseries?days=${days}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=organic&platform=${platformParam}${collectionParam}`),
-        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=ads&platform=${platformParam}${collectionParam}`),
-        axios.get(`${API_URL}/api/analytics/mixpanel`)
+        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=ads&platform=${platformParam}${collectionParam}`)
       ]);
 
       const [
@@ -249,8 +249,7 @@ function AnalyticsDashboard() {
         statsRes,
         analyticsRes,
         organicRes,
-        adsRes,
-        mixpanelRes
+        adsRes
       ] = results.map(res => res.status === 'fulfilled' ? res.value : { data: null });
 
       // Update all data in one state update to reduce re-renders
@@ -265,7 +264,7 @@ function AnalyticsDashboard() {
         analyticsData: analyticsRes?.data || [],
         organicOverview: organicRes?.data,
         adsOverview: adsRes?.data,
-        mixpanelData: mixpanelRes?.data
+        mixpanelData: null  // Loaded separately
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -277,6 +276,24 @@ function AnalyticsDashboard() {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // Lazy load Mixpanel data separately (cached for 1 hour on backend)
+  useEffect(() => {
+    const fetchMixpanelData = async () => {
+      setMixpanelLoading(true);
+      try {
+        const response = await axios.get(`${API_URL}/api/analytics/mixpanel`);
+        setData(prev => ({ ...prev, mixpanelData: response.data }));
+      } catch (error) {
+        console.error('Error fetching Mixpanel data:', error);
+      } finally {
+        setMixpanelLoading(false);
+      }
+    };
+    // Delay slightly to prioritize initial render
+    const timer = setTimeout(fetchMixpanelData, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Sync URL param with context state
   useEffect(() => {
@@ -933,49 +950,67 @@ function AnalyticsDashboard() {
       )} */}
 
       {/* Mixpanel Charts Section */}
-      {mixpanelData && (
+      {(mixpanelLoading || mixpanelData) && (
         <div className="mb-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Mixpanel: Installs over Time */}
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mixpanel: Installs over Time</h2>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={mixpanelData["Installs"]?.[0]?.data || []}>
-                  <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
-                  <YAxis stroke="#9ca3af" fontSize={11} />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                  />
-                  <Line type="monotone" dataKey="y" stroke="#ec4899" strokeWidth={2} name="Installs" dot={true} />
-                </LineChart>
-              </ResponsiveContainer>
+              {mixpanelLoading ? (
+                <div className="flex items-center justify-center h-[250px]">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 dark:border-purple-400 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading Mixpanel data...</p>
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={mixpanelData["Installs"]?.[0]?.data || []}>
+                    <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1f2937',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#fff'
+                      }}
+                    />
+                    <Line type="monotone" dataKey="y" stroke="#ec4899" strokeWidth={2} name="Installs" dot={true} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Mixpanel: Daily Trial Started */}
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mixpanel: Daily Trial Started</h2>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={mixpanelData["Daily Trial Started"]?.[0]?.data || []}>
-                  <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
-                  <YAxis stroke="#9ca3af" fontSize={11} />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                  />
-                  <Line type="monotone" dataKey="y" stroke="#10b981" strokeWidth={2} name="Trial Started" dot={true} />
-                </LineChart>
-              </ResponsiveContainer>
+              {mixpanelLoading ? (
+                <div className="flex items-center justify-center h-[250px]">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 dark:border-purple-400 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading Mixpanel data...</p>
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={mixpanelData["Daily Trial Started"]?.[0]?.data || []}>
+                    <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1f2937',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#fff'
+                      }}
+                    />
+                    <Line type="monotone" dataKey="y" stroke="#10b981" strokeWidth={2} name="Trial Started" dot={true} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
