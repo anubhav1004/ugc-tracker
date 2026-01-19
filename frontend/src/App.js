@@ -2,7 +2,9 @@ import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './ThemeContext';
 import { FilterProvider } from './FilterContext';
+import { MobileNavProvider, useMobileNav } from './MobileNavContext';
 import Sidebar from './components/Sidebar';
+import MobileHeader from './components/MobileHeader';
 
 // Lazy load route components for code splitting
 const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
@@ -23,32 +25,55 @@ const LoadingFallback = () => (
   </div>
 );
 
+// Inner component that uses mobile nav context
+function AppLayout() {
+  const { isSidebarOpen, closeSidebar } = useMobileNav();
+
+  return (
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors overflow-hidden relative">
+      {/* Mobile overlay backdrop */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={closeSidebar}
+          aria-label="Close menu"
+        />
+      )}
+
+      {/* Left Sidebar */}
+      <Sidebar />
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto w-full lg:w-auto">
+        {/* Mobile Header with Hamburger */}
+        <MobileHeader />
+
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<AnalyticsDashboard />} />
+            <Route path="/all-videos" element={<AllVideos />} />
+            <Route path="/all-accounts" element={<AllAccounts />} />
+            <Route path="/add-accounts" element={<AddAccounts />} />
+            <Route path="/scrape" element={<URLScraper />} />
+            <Route path="/search" element={<HashtagSearch />} />
+            <Route path="/trending" element={<TrendingAudio />} />
+            <Route path="/collections/:name" element={<AnalyticsDashboard />} />
+          </Routes>
+        </Suspense>
+      </main>
+    </div>
+  );
+}
+
 function App() {
   return (
     <ThemeProvider>
       <FilterProvider>
-        <Router>
-          <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors overflow-hidden">
-            {/* Left Sidebar */}
-            <Sidebar />
-
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto">
-              <Suspense fallback={<LoadingFallback />}>
-                <Routes>
-                  <Route path="/" element={<AnalyticsDashboard />} />
-                  <Route path="/all-videos" element={<AllVideos />} />
-                  <Route path="/all-accounts" element={<AllAccounts />} />
-                  <Route path="/add-accounts" element={<AddAccounts />} />
-                  <Route path="/scrape" element={<URLScraper />} />
-                  <Route path="/search" element={<HashtagSearch />} />
-                  <Route path="/trending" element={<TrendingAudio />} />
-                  <Route path="/collections/:name" element={<AnalyticsDashboard />} />
-                </Routes>
-              </Suspense>
-            </main>
-          </div>
-        </Router>
+        <MobileNavProvider>
+          <Router>
+            <AppLayout />
+          </Router>
+        </MobileNavProvider>
       </FilterProvider>
     </ThemeProvider>
   );

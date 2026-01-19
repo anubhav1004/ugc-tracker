@@ -20,15 +20,15 @@ const formatNumber = (num) => {
 
 // Memoized MetricCard component to prevent unnecessary re-renders
 const MetricCard = memo(({ title, value, subtitle, change }) => (
-  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+  <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-sm border border-gray-200 dark:border-gray-700">
     <div className="flex justify-between items-start mb-2">
       <div>
-        <p className="text-sm text-gray-600 dark:text-gray-400">{title}</p>
-        <p className="text-sm text-purple-600 dark:text-purple-400">{subtitle}</p>
+        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{title}</p>
+        <p className="text-xs sm:text-sm text-purple-600 dark:text-purple-400">{subtitle}</p>
       </div>
     </div>
     <div className="flex items-end justify-between">
-      <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(value)}</p>
+      <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">{formatNumber(value)}</p>
       {change !== undefined && change !== 0 && (
         <div className={`flex items-center text-sm ${change > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
           {change > 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
@@ -519,11 +519,11 @@ function AnalyticsDashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             {currentCollection ? `Collection: ${currentCollection.name}` : 'Comprehensive TikTok performance insights'}
           </p>
@@ -531,7 +531,7 @@ function AnalyticsDashboard() {
         {currentCollection && (
           <button
             onClick={() => setShowManageAccountsModal(true)}
-            className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            className="flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium min-h-[44px]"
           >
             <Users className="w-4 h-4 mr-2" />
             Manage Accounts
@@ -541,9 +541,9 @@ function AnalyticsDashboard() {
 
       {/* Date Filter */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => { setDateFilter('today'); setShowCustomDates(false); }}
               className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'today'
@@ -624,9 +624,9 @@ function AnalyticsDashboard() {
 
       {/* Platform Filter */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Platform:</label>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => handlePlatformChange('all')}
               className={`px-4 py-2 text-sm rounded-lg transition ${selectedPlatform === 'all'
@@ -662,9 +662,9 @@ function AnalyticsDashboard() {
       {organicOverview && adsOverview && (
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">📊 Organic vs Spark Ads Comparison</h2>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Organic Column */}
-            <div className="border-r border-gray-200 dark:border-gray-700 pr-6">
+            <div className="md:border-r border-gray-200 dark:border-gray-700 md:pr-6 pb-6 md:pb-0 border-b md:border-b-0">
               <div className="flex items-center mb-4">
                 <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
                 <h3 className="text-md font-semibold text-gray-900 dark:text-white">Organic (Non-Paid)</h3>
@@ -690,7 +690,7 @@ function AnalyticsDashboard() {
             </div>
 
             {/* Spark Ads Column */}
-            <div className="pl-6">
+            <div className="md:pl-6 pt-6 md:pt-0">
               <div className="flex items-center mb-4">
                 <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
                 <h3 className="text-md font-semibold text-gray-900 dark:text-white">Spark Ads (Paid)</h3>
@@ -719,10 +719,10 @@ function AnalyticsDashboard() {
       )}
 
       {/* Metric Type Tabs */}
-      <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mb-6">
+      <div className="flex flex-col sm:flex-row gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mb-6">
         <button
           onClick={() => setMetricType('total')}
-          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${metricType === 'total'
+          className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-md font-medium transition ${metricType === 'total'
             ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-400'
             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
@@ -734,7 +734,7 @@ function AnalyticsDashboard() {
         </button>
         <button
           onClick={() => setMetricType('organic')}
-          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${metricType === 'organic'
+          className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-md font-medium transition ${metricType === 'organic'
             ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400'
             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
@@ -746,7 +746,7 @@ function AnalyticsDashboard() {
         </button>
         <button
           onClick={() => setMetricType('ads')}
-          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${metricType === 'ads'
+          className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-md font-medium transition ${metricType === 'ads'
             ? 'bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400'
             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
@@ -760,7 +760,7 @@ function AnalyticsDashboard() {
 
       {/* Metrics Cards */}
       {overview && (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <MetricCard
             title="Views"
             value={overview.views.total}
@@ -838,8 +838,8 @@ function AnalyticsDashboard() {
 
       {/* Views Over Time Chart */}
       {viewsChartData && viewsChartData.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="flex justify-between items-center mb-2">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-2">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Views Over Time</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -872,7 +872,7 @@ function AnalyticsDashboard() {
 
           {/* Growth Rate Indicators */}
           {viewsChartData.length > 0 && (
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-purple-50 dark:bg-purple-900 rounded-lg p-4">
                 <div className="text-sm text-purple-600 dark:text-purple-300 font-medium mb-1">Total Growth</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -976,9 +976,9 @@ function AnalyticsDashboard() {
       {/* Mixpanel Charts Section */}
       {(mixpanelLoading || mixpanelData) && (
         <div className="mb-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
             {/* Mixpanel: Installs over Time */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mixpanel: Installs over Time</h2>
               {mixpanelLoading ? (
                 <div className="flex items-center justify-center h-[250px]">
@@ -1012,7 +1012,7 @@ function AnalyticsDashboard() {
             </div>
 
             {/* Mixpanel: Daily Trial Started */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mixpanel: Daily Trial Started</h2>
               {mixpanelLoading ? (
                 <div className="flex items-center justify-center h-[250px]">
@@ -1110,10 +1110,10 @@ function AnalyticsDashboard() {
 
 
       {/* Analytics Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
         {/* Virality Median Analysis */}
         {viralityAnalysis && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Virality Median Analysis</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart
@@ -1139,7 +1139,7 @@ function AnalyticsDashboard() {
 
         {/* Duration Analysis */}
         {durationAnalysis && durationAnalysis.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Duration Analysis</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={durationAnalysis}>
@@ -1156,8 +1156,8 @@ function AnalyticsDashboard() {
 
       {/* Metrics Breakdown */}
       {metricsBreakdown && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="flex items-center space-x-4 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4">
             <button
               onClick={() => setSelectedTab('Averages')}
               className={`px-4 py-2 text-sm font-medium rounded ${selectedTab === 'Averages' ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
@@ -1243,13 +1243,13 @@ function AnalyticsDashboard() {
 
       {/* Video Stats Table */}
       {videoStats && videoStats.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           {/* Header with Filter */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Video Stats</h2>
 
             {/* Spark Ads Filter */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter:</label>
               <select
                 value={sparkAdFilter}
@@ -1263,7 +1263,12 @@ function AnalyticsDashboard() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile scroll hint */}
+          <div className="sm:hidden text-xs text-gray-500 dark:text-gray-400 mb-2 text-center">
+            ← Scroll horizontally to see all columns →
+          </div>
+
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">

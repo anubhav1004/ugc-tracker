@@ -10,12 +10,14 @@ import {
   ChevronRight,
   Plus,
   Sun,
-  Moon
+  Moon,
+  X
 } from 'lucide-react';
 import axios from 'axios';
 import CreateCollectionModal from './CreateCollectionModal';
 import { useTheme } from '../ThemeContext';
 import { useFilters } from '../FilterContext';
+import { useMobileNav } from '../MobileNavContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -23,6 +25,7 @@ function Sidebar() {
   const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
   const { selectedPlatform, setSelectedPlatform, selectedCollection, setSelectedCollection } = useFilters();
+  const { isSidebarOpen, closeSidebar } = useMobileNav();
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [collections, setCollections] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -49,7 +52,13 @@ function Sidebar() {
   const NavItem = ({ to, icon: Icon, label, badge }) => (
     <Link
       to={to}
-      className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+      onClick={() => {
+        // Close sidebar on mobile when navigating
+        if (window.innerWidth < 1024) {
+          closeSidebar();
+        }
+      }}
+      className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors min-h-[44px] ${
         isActive(to)
           ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300 font-medium'
           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -66,7 +75,18 @@ function Sidebar() {
   );
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col transition-colors">
+    <div className={`
+      w-64
+      bg-white dark:bg-gray-800
+      border-r border-gray-200 dark:border-gray-700
+      h-screen
+      flex flex-col
+      transition-all duration-300 ease-in-out
+      fixed lg:static
+      top-0 left-0
+      z-50
+      ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+    `}>
       {/* Logo/Brand */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -80,18 +100,29 @@ function Sidebar() {
             </div>
           </div>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          >
-            {isDark ? (
-              <Sun className="w-5 h-5 text-yellow-500" />
-            ) : (
-              <Moon className="w-5 h-5 text-gray-600" />
-            )}
-          </button>
+          <div className="flex items-center space-x-1">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDark ? (
+                <Sun className="w-5 h-5 text-yellow-500" />
+              ) : (
+                <Moon className="w-5 h-5 text-gray-600" />
+              )}
+            </button>
+
+            {/* Mobile close button */}
+            <button
+              onClick={closeSidebar}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Close menu"
+            >
+              <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -170,7 +201,13 @@ function Sidebar() {
                   <Link
                     key={collection.id}
                     to={`/collections/${collection.id}`}
-                    className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors ${
+                    onClick={() => {
+                      // Close sidebar on mobile when navigating
+                      if (window.innerWidth < 1024) {
+                        closeSidebar();
+                      }
+                    }}
+                    className={`flex items-center px-3 py-2 text-sm rounded-lg transition-colors min-h-[44px] ${
                       location.pathname === `/collections/${collection.id}`
                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
