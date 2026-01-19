@@ -891,8 +891,8 @@ function AnalyticsDashboard() {
         </div>
       )}
 
-      {/* Views vs Installs vs Trial Started Comparison */}
-      {analyticsData && analyticsData.length > 0 && (
+      {/* Views vs Installs vs Trial Started Comparison - Removed as per user request */}
+      {/* {analyticsData && analyticsData.length > 0 && (
         <div className="mb-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Views vs Installs vs Trial Started</h2>
@@ -930,7 +930,7 @@ function AnalyticsDashboard() {
             </ResponsiveContainer>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Mixpanel Charts Section */}
       {mixpanelData && (
