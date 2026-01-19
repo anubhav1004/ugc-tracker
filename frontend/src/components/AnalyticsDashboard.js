@@ -225,19 +225,7 @@ function AnalyticsDashboard() {
       // Build collection parameter
       const collectionParam = activeCollectionId && activeCollectionId !== 'all' ? `&collection_id=${activeCollectionId}` : '';
 
-      const [
-        overviewRes,
-        viewsRes,
-        viralRes,
-        viralityRes,
-        durationRes,
-        metricsRes,
-        statsRes,
-        analyticsRes,
-        organicRes,
-        adsRes,
-        mixpanelRes
-      ] = await Promise.all([
+      const results = await Promise.allSettled([
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/historical-growth-split?days=${days}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/most-viral?limit=3&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
@@ -251,19 +239,33 @@ function AnalyticsDashboard() {
         axios.get(`${API_URL}/api/analytics/mixpanel`)
       ]);
 
+      const [
+        overviewRes,
+        viewsRes,
+        viralRes,
+        viralityRes,
+        durationRes,
+        metricsRes,
+        statsRes,
+        analyticsRes,
+        organicRes,
+        adsRes,
+        mixpanelRes
+      ] = results.map(res => res.status === 'fulfilled' ? res.value : { data: null });
+
       // Update all data in one state update to reduce re-renders
       setData({
-        overview: overviewRes.data,
-        viewsOverTime: viewsRes.data,
-        mostViral: viralRes.data,
-        viralityAnalysis: viralityRes.data,
-        durationAnalysis: durationRes.data,
-        metricsBreakdown: metricsRes.data,
-        videoStats: statsRes.data,
-        analyticsData: analyticsRes.data,
-        organicOverview: organicRes.data,
-        adsOverview: adsRes.data,
-        mixpanelData: mixpanelRes.data
+        overview: overviewRes?.data,
+        viewsOverTime: viewsRes?.data || [],
+        mostViral: viralRes?.data || [],
+        viralityAnalysis: viralityRes?.data,
+        durationAnalysis: durationRes?.data || [],
+        metricsBreakdown: metricsRes?.data,
+        videoStats: statsRes?.data || [],
+        analyticsData: analyticsRes?.data || [],
+        organicOverview: organicRes?.data,
+        adsOverview: adsRes?.data,
+        mixpanelData: mixpanelRes?.data
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);

@@ -5,6 +5,8 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -13,6 +15,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright and system dependencies for Chromium
+RUN playwright install --with-deps chromium
 
 # Copy application code
 COPY . .
