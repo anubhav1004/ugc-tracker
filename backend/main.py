@@ -1208,16 +1208,28 @@ async def get_historical_growth_split(
             VideoHistory.snapshot_date <= end_date
         ).order_by(VideoHistory.snapshot_date).all()
 
-        if not snapshots:
-            return []
-
-        # Group snapshots by date
         from collections import defaultdict
         daily_data = defaultdict(lambda: {'views_growth': 0})
 
-        for snapshot in snapshots:
-            date_key = snapshot.snapshot_date.date()
-            daily_data[date_key]['views_growth'] += snapshot.views_growth
+        if not snapshots:
+            # FALLBACK: If no historical snapshots exist, use posted_at date and current views
+            # This provides a temporary visualization until historical data is compiled
+            videos = db.query(Video).filter(
+                Video.id.in_(tracked_video_ids),
+                Video.posted_at.isnot(None),
+                Video.posted_at >= start_date,
+                Video.posted_at <= end_date
+            ).all()
+
+            # Group videos by their posted_at date and sum their current views
+            for video in videos:
+                date_key = video.posted_at.date()
+                daily_data[date_key]['views_growth'] += video.views
+        else:
+            # Use historical snapshots (normal behavior)
+            for snapshot in snapshots:
+                date_key = snapshot.snapshot_date.date()
+                daily_data[date_key]['views_growth'] += snapshot.views_growth
 
         # Generate complete date range
         result = []
