@@ -932,66 +932,6 @@ function AnalyticsDashboard() {
         </div>
       )}
 
-      {/* Conversion Funnel */}
-      {analyticsData && analyticsData.length > 0 && (
-        <div className="mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Conversion Funnel</h2>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={getConversionFunnelData()}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
-                <XAxis dataKey="stage" stroke="#9ca3af" fontSize={12} />
-                <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={formatNumber} />
-                <Tooltip
-                  formatter={(value) => formatNumber(value)}
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#fff'
-                  }}
-                />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {getConversionFunnelData().map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">View to Install Rate</p>
-                <p className="text-2xl font-bold text-purple-900 dark:text-purple-300">
-                  {getConversionFunnelData()[1]?.value && getConversionFunnelData()[0]?.value
-                    ? ((getConversionFunnelData()[1].value / getConversionFunnelData()[0].value) * 100).toFixed(2)
-                    : 0}%
-                </p>
-              </div>
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Install to Trial Rate</p>
-                <p className="text-2xl font-bold text-green-900 dark:text-green-300">
-                  {getConversionFunnelData()[2]?.value && getConversionFunnelData()[1]?.value
-                    ? ((getConversionFunnelData()[2].value / getConversionFunnelData()[1].value) * 100).toFixed(2)
-                    : 0}%
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Most Viral Videos */}
-      {mostViral && mostViral.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Most Viral Videos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mostViral.map((video, index) => (
-              <ViralVideoCard key={video.id} video={video} rank={index + 1} />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Mixpanel Charts Section */}
       {mixpanelData && (
         <div className="mb-6">
@@ -1037,6 +977,66 @@ function AnalyticsDashboard() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conversion Funnel - Commented out as requested */}
+      {/* {analyticsData && analyticsData.length > 0 && (
+        <div className="mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Conversion Funnel</h2>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={getConversionFunnelData()}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                <XAxis dataKey="stage" stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={formatNumber} />
+                <Tooltip
+                  formatter={(value) => formatNumber(value)}
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {getConversionFunnelData().map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">View to Install Rate</p>
+                <p className="text-2xl font-bold text-purple-900 dark:text-purple-300">
+                  {getConversionFunnelData()[1]?.value && getConversionFunnelData()[0]?.value
+                    ? ((getConversionFunnelData()[1].value / getConversionFunnelData()[0].value) * 100).toFixed(2)
+                    : 0}%
+                </p>
+              </div>
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Install to Trial Rate</p>
+                <p className="text-2xl font-bold text-green-900 dark:text-green-300">
+                  {getConversionFunnelData()[2]?.value && getConversionFunnelData()[1]?.value
+                    ? ((getConversionFunnelData()[2].value / getConversionFunnelData()[1].value) * 100).toFixed(2)
+                    : 0}%
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )} */}
+
+      {/* Most Viral Videos */}
+      {mostViral && mostViral.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Most Viral Videos</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {mostViral.map((video, index) => (
+              <ViralVideoCard key={video.id} video={video} rank={index + 1} />
+            ))}
           </div>
         </div>
       )}
