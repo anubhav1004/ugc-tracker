@@ -895,18 +895,11 @@ async def get_analytics_overview(
     collection_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Get analytics overview for metrics cards"""
+    """Get analytics overview for metrics cards - shows ALL videos' current stats"""
 
-    # Calculate date range based on posted_at
-    end_date = datetime.utcnow()
-    start_date = end_date - timedelta(days=days)
-
-    # Query videos in date range - filter by posted_at instead of scraped_at
-    query = db.query(Video).filter(
-        Video.posted_at.isnot(None),
-        Video.posted_at >= start_date,
-        Video.posted_at <= end_date
-    )
+    # Don't filter by date for overview - show all videos' current cumulative stats
+    # The date filter only affects the historical growth chart
+    query = db.query(Video)
 
     # Apply collection filter
     query = apply_collection_filter(query, collection_id, db)
