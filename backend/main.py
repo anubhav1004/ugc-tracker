@@ -1152,6 +1152,90 @@ async def get_historical_growth(
     return result
 
 
+@app.get("/api/analytics/historical-growth-split")
+async def get_historical_growth_split(
+    days: int = Query(30, ge=1, le=365),
+    platform: str = Query(None),
+    collection_id: int = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get historical growth data split by organic vs spark ads.
+    Returns two separate datasets for comparison.
+    """
+
+    # Calculate date range
+    end_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date = end_date - timedelta(days=days)
+
+    # Helper function to get data for a specific type
+    def get_data_for_type(is_spark_ad_filter):
+        video_query = db.query(Video.id)
+
+        # Apply collection filter
+        if collection_id:
+            video_ids_in_collection = db.query(VideoCollection.video_id).filter(
+                VideoCollection.collection_id == collection_id
+            ).all()
+            video_ids = [v[0] for v in video_ids_in_collection]
+            video_query = video_query.filter(Video.id.in_(video_ids))
+
+        # Apply platform filter
+        if platform:
+            platforms = [p.strip().lower() for p in platform.split(',')]
+            video_query = video_query.filter(Video.platform.in_(platforms))
+
+        # Apply spark ad filter
+        video_query = video_query.filter(Video.is_spark_ad == is_spark_ad_filter)
+
+        tracked_video_ids = [v[0] for v in video_query.all()]
+
+        if not tracked_video_ids:
+            return []
+
+        # Query historical snapshots
+        snapshots = db.query(VideoHistory).filter(
+            VideoHistory.video_id.in_(tracked_video_ids),
+            VideoHistory.snapshot_date >= start_date,
+            VideoHistory.snapshot_date <= end_date
+        ).order_by(VideoHistory.snapshot_date).all()
+
+        if not snapshots:
+            return []
+
+        # Group snapshots by date
+        from collections import defaultdict
+        daily_data = defaultdict(lambda: {'views_growth': 0})
+
+        for snapshot in snapshots:
+            date_key = snapshot.snapshot_date.date()
+            daily_data[date_key]['views_growth'] += snapshot.views_growth
+
+        # Generate complete date range
+        result = []
+        current_date = start_date.date()
+        end_date_only = end_date.date()
+
+        while current_date <= end_date_only:
+            views_growth = daily_data.get(current_date, {}).get('views_growth', 0)
+            result.append({
+                'date': current_date.strftime('%Y-%m-%d'),
+                'views_growth': views_growth
+            })
+            current_date += timedelta(days=1)
+
+        return result
+
+    # Get organic and spark ad data separately
+    organic_data = get_data_for_type(False)
+    spark_ad_data = get_data_for_type(True)
+
+    return {
+        'organic': organic_data,
+        'spark_ads': spark_ad_data
+    }
+
+
 @app.get("/api/analytics/most-viral")
 async def get_most_viral_videos(
     limit: int = Query(10, ge=1, le=50),

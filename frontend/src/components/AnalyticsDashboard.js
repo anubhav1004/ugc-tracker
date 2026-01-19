@@ -237,7 +237,7 @@ function AnalyticsDashboard() {
         adsRes
       ] = await Promise.all([
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
-        axios.get(`${API_URL}/api/analytics/historical-growth?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/historical-growth-split?days=${days}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/most-viral?limit=3&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/virality-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/duration-analysis?metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
@@ -328,24 +328,61 @@ function AnalyticsDashboard() {
   // Calculate daily increments from cumulative data
   // Get the appropriate data based on view mode (memoized for performance)
   const viewsChartData = useMemo(() => {
-    if (!viewsOverTime || viewsOverTime.length === 0) {
+    if (!viewsOverTime || !viewsOverTime.organic || !viewsOverTime.spark_ads) {
       return [];
     }
 
-    if (viewMode === 'daily') {
-      // Use views_growth field directly from historical data
-      return viewsOverTime.map(item => ({
+    const organicData = viewsOverTime.organic;
+    const sparkData = viewsOverTime.spark_ads;
+
+    if (organicData.length === 0 && sparkData.length === 0) {
+      return [];
+    }
+
+    // Merge organic and spark ad data by date
+    const dateMap = new Map();
+
+    // Add organic data
+    organicData.forEach(item => {
+      dateMap.set(item.date, {
         date: item.date,
-        views: item.views_growth || 0 // Actual daily growth
-      }));
+        organic_views: item.views_growth || 0,
+        spark_views: 0
+      });
+    });
+
+    // Add spark ad data
+    sparkData.forEach(item => {
+      if (dateMap.has(item.date)) {
+        dateMap.get(item.date).spark_views = item.views_growth || 0;
+      } else {
+        dateMap.set(item.date, {
+          date: item.date,
+          organic_views: 0,
+          spark_views: item.views_growth || 0
+        });
+      }
+    });
+
+    // Convert to array and sort by date
+    const mergedData = Array.from(dateMap.values()).sort((a, b) =>
+      new Date(a.date) - new Date(b.date)
+    );
+
+    if (viewMode === 'daily') {
+      // Daily mode: return raw growth values
+      return mergedData;
     } else {
-      // Cumulative mode: calculate running total from daily growth
-      let cumulativeViews = 0;
-      return viewsOverTime.map(item => {
-        cumulativeViews += (item.views_growth || 0);
+      // Cumulative mode: calculate running totals
+      let cumulativeOrganic = 0;
+      let cumulativeSpark = 0;
+      return mergedData.map(item => {
+        cumulativeOrganic += item.organic_views;
+        cumulativeSpark += item.spark_views;
         return {
           date: item.date,
-          views: cumulativeViews
+          organic_views: cumulativeOrganic,
+          spark_views: cumulativeSpark
         };
       });
     }
@@ -765,7 +802,7 @@ function AnalyticsDashboard() {
       )}
 
       {/* Views Over Time Chart */}
-      {viewsOverTime && viewsOverTime.length > 0 && (
+      {viewsChartData && viewsChartData.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
           <div className="flex justify-between items-center mb-2">
             <div>
@@ -801,26 +838,26 @@ function AnalyticsDashboard() {
           </div>
 
           {/* Growth Rate Indicators */}
-          {viewsOverTime.length > 0 && (
+          {viewsChartData.length > 0 && (
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-purple-50 dark:bg-purple-900 rounded-lg p-4">
                 <div className="text-sm text-purple-600 dark:text-purple-300 font-medium mb-1">Total Growth</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatNumber(viewsOverTime.reduce((sum, item) => sum + (item.views_growth || 0), 0))}
+                  {formatNumber(viewsChartData.reduce((sum, item) => sum + (item.organic_views || 0) + (item.spark_views || 0), 0))}
                 </div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">views gained in period</div>
               </div>
               <div className="bg-blue-50 dark:bg-blue-900 rounded-lg p-4">
                 <div className="text-sm text-blue-600 dark:text-blue-300 font-medium mb-1">Daily Average</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatNumber(Math.round(viewsOverTime.reduce((sum, item) => sum + (item.views_growth || 0), 0) / viewsOverTime.length))}
+                  {formatNumber(Math.round(viewsChartData.reduce((sum, item) => sum + (item.organic_views || 0) + (item.spark_views || 0), 0) / viewsChartData.length))}
                 </div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">views per day</div>
               </div>
               <div className="bg-green-50 dark:bg-green-900 rounded-lg p-4">
                 <div className="text-sm text-green-600 dark:text-green-300 font-medium mb-1">Best Day</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatNumber(Math.max(...viewsOverTime.map(item => item.views_growth || 0)))}
+                  {formatNumber(Math.max(...viewsChartData.map(item => (item.organic_views || 0) + (item.spark_views || 0))))}
                 </div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">highest daily growth</div>
               </div>
@@ -840,10 +877,20 @@ function AnalyticsDashboard() {
                   color: '#fff'
                 }}
               />
+              <Legend />
               <Line
                 type="monotone"
-                dataKey="views"
-                stroke="#8b5cf6"
+                dataKey="organic_views"
+                name="Organic Views"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="spark_views"
+                name="Spark Ad Views"
+                stroke="#f59e0b"
                 strokeWidth={2}
                 dot={false}
               />
