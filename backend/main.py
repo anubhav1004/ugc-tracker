@@ -20,6 +20,7 @@ from scrapers.tiktok_scraper import TikTokScraper
 from scrapers.youtube_scraper import YouTubeScraper
 from scrapers.trending_audio_scraper import TrendingAudioScraper
 from scrapers.url_scraper import URLScraper
+from scrapers.mixpanel_scraper import MixpanelScraper
 
 app = FastAPI(title="Social Media Tracker API", version="1.0.0")
 
@@ -499,6 +500,20 @@ async def get_analytics_timeseries(
         })
 
     return result
+
+
+@app.get("/api/analytics/mixpanel")
+async def get_mixpanel_analytics():
+    """Get latest analytics from Mixpanel dashboard"""
+    url = "https://mixpanel.com/p/SJdKzRbuddFHjaHtbUvtrk"
+    
+    try:
+        async with MixpanelScraper(url) as scraper:
+            data = await scraper.scrape_data()
+            return data
+    except Exception as e:
+        logger.error(f"Mixpanel scraping failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch Mixpanel data")
 
 
 @app.get("/api/trending/videos", response_model=List[VideoResponse])

@@ -147,12 +147,13 @@ function AnalyticsDashboard() {
     videoStats: [],
     analyticsData: [],
     organicOverview: null,
-    adsOverview: null
+    adsOverview: null,
+    mixpanelData: null
   });
 
   // Destructure for backward compatibility
   const { overview, viewsOverTime, mostViral, viralityAnalysis, durationAnalysis,
-          metricsBreakdown, videoStats, analyticsData, organicOverview, adsOverview } = data;
+    metricsBreakdown, videoStats, analyticsData, organicOverview, adsOverview, mixpanelData } = data;
 
   // UI state
   const [selectedTab, setSelectedTab] = useState('Averages');
@@ -234,7 +235,8 @@ function AnalyticsDashboard() {
         statsRes,
         analyticsRes,
         organicRes,
-        adsRes
+        adsRes,
+        mixpanelRes
       ] = await Promise.all([
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/historical-growth-split?days=${days}&platform=${platformParam}${collectionParam}`),
@@ -245,7 +247,8 @@ function AnalyticsDashboard() {
         axios.get(`${API_URL}/api/analytics/video-stats?limit=${displayedCount}&metric_type=${metricType}&platform=${platformParam}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/timeseries?days=${days}${collectionParam}`),
         axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=organic&platform=${platformParam}${collectionParam}`),
-        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=ads&platform=${platformParam}${collectionParam}`)
+        axios.get(`${API_URL}/api/analytics/overview?days=${days}&metric_type=ads&platform=${platformParam}${collectionParam}`),
+        axios.get(`${API_URL}/api/analytics/mixpanel`)
       ]);
 
       // Update all data in one state update to reduce re-renders
@@ -259,7 +262,8 @@ function AnalyticsDashboard() {
         videoStats: statsRes.data,
         analyticsData: analyticsRes.data,
         organicOverview: organicRes.data,
-        adsOverview: adsRes.data
+        adsOverview: adsRes.data,
+        mixpanelData: mixpanelRes.data
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -499,61 +503,55 @@ function AnalyticsDashboard() {
           <div className="flex space-x-2">
             <button
               onClick={() => { setDateFilter('today'); setShowCustomDates(false); }}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                dateFilter === 'today'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'today'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Today
             </button>
             <button
               onClick={() => { setDateFilter('yesterday'); setShowCustomDates(false); }}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                dateFilter === 'yesterday'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'yesterday'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Yesterday
             </button>
             <button
               onClick={() => { setDateFilter('last7days'); setShowCustomDates(false); }}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                dateFilter === 'last7days'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'last7days'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Last 7 Days
             </button>
             <button
               onClick={() => { setDateFilter('last30days'); setShowCustomDates(false); }}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                dateFilter === 'last30days'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'last30days'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Last 30 Days
             </button>
             <button
               onClick={() => { setDateFilter('alltime'); setShowCustomDates(false); }}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                dateFilter === 'alltime'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'alltime'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               All Time
             </button>
             <button
               onClick={() => { setDateFilter('custom'); setShowCustomDates(true); }}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                dateFilter === 'custom'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${dateFilter === 'custom'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Custom
             </button>
@@ -588,31 +586,28 @@ function AnalyticsDashboard() {
           <div className="flex space-x-2">
             <button
               onClick={() => handlePlatformChange('all')}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                selectedPlatform === 'all'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${selectedPlatform === 'all'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               All
             </button>
             <button
               onClick={() => handlePlatformChange('tiktok')}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                selectedPlatform === 'tiktok'
-                  ? 'bg-gray-800 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${selectedPlatform === 'tiktok'
+                ? 'bg-gray-800 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               TikTok
             </button>
             <button
               onClick={() => handlePlatformChange('instagram')}
-              className={`px-4 py-2 text-sm rounded-lg transition ${
-                selectedPlatform === 'instagram'
-                  ? 'bg-pink-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-4 py-2 text-sm rounded-lg transition ${selectedPlatform === 'instagram'
+                ? 'bg-pink-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
               Instagram
             </button>
@@ -684,11 +679,10 @@ function AnalyticsDashboard() {
       <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mb-6">
         <button
           onClick={() => setMetricType('total')}
-          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${
-            metricType === 'total'
-              ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-          }`}
+          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${metricType === 'total'
+            ? 'bg-white dark:bg-gray-700 shadow text-purple-600 dark:text-purple-400'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
         >
           <div className="text-center">
             <div className="text-lg font-bold">Total</div>
@@ -697,11 +691,10 @@ function AnalyticsDashboard() {
         </button>
         <button
           onClick={() => setMetricType('organic')}
-          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${
-            metricType === 'organic'
-              ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-          }`}
+          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${metricType === 'organic'
+            ? 'bg-white dark:bg-gray-700 shadow text-green-600 dark:text-green-400'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
         >
           <div className="text-center">
             <div className="text-lg font-bold">Organic</div>
@@ -710,11 +703,10 @@ function AnalyticsDashboard() {
         </button>
         <button
           onClick={() => setMetricType('ads')}
-          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${
-            metricType === 'ads'
-              ? 'bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-          }`}
+          className={`flex-1 px-4 py-3 rounded-md font-medium transition ${metricType === 'ads'
+            ? 'bg-white dark:bg-gray-700 shadow text-blue-600 dark:text-blue-400'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
         >
           <div className="text-center">
             <div className="text-lg font-bold">Spark Ads</div>
@@ -731,11 +723,11 @@ function AnalyticsDashboard() {
             value={overview.views.total}
             subtitle={
               dateFilter === 'today' ? 'Today' :
-              dateFilter === 'yesterday' ? 'Yesterday' :
-              dateFilter === 'last7days' ? 'Last 7 Days' :
-              dateFilter === 'last30days' ? 'Last 30 Days' :
-              dateFilter === 'alltime' ? 'All Time' :
-              'Custom Range'
+                dateFilter === 'yesterday' ? 'Yesterday' :
+                  dateFilter === 'last7days' ? 'Last 7 Days' :
+                    dateFilter === 'last30days' ? 'Last 30 Days' :
+                      dateFilter === 'alltime' ? 'All Time' :
+                        'Custom Range'
             }
           />
           <MetricCard
@@ -743,11 +735,11 @@ function AnalyticsDashboard() {
             value={overview.engagement.total}
             subtitle={
               dateFilter === 'today' ? 'Today' :
-              dateFilter === 'yesterday' ? 'Yesterday' :
-              dateFilter === 'last7days' ? 'Last 7 Days' :
-              dateFilter === 'last30days' ? 'Last 30 Days' :
-              dateFilter === 'alltime' ? 'All Time' :
-              'Custom Range'
+                dateFilter === 'yesterday' ? 'Yesterday' :
+                  dateFilter === 'last7days' ? 'Last 7 Days' :
+                    dateFilter === 'last30days' ? 'Last 30 Days' :
+                      dateFilter === 'alltime' ? 'All Time' :
+                        'Custom Range'
             }
           />
           <MetricCard
@@ -755,11 +747,11 @@ function AnalyticsDashboard() {
             value={overview.likes.total}
             subtitle={
               dateFilter === 'today' ? 'Today' :
-              dateFilter === 'yesterday' ? 'Yesterday' :
-              dateFilter === 'last7days' ? 'Last 7 Days' :
-              dateFilter === 'last30days' ? 'Last 30 Days' :
-              dateFilter === 'alltime' ? 'All Time' :
-              'Custom Range'
+                dateFilter === 'yesterday' ? 'Yesterday' :
+                  dateFilter === 'last7days' ? 'Last 7 Days' :
+                    dateFilter === 'last30days' ? 'Last 30 Days' :
+                      dateFilter === 'alltime' ? 'All Time' :
+                        'Custom Range'
             }
           />
           <MetricCard
@@ -767,11 +759,11 @@ function AnalyticsDashboard() {
             value={overview.comments.total}
             subtitle={
               dateFilter === 'today' ? 'Today' :
-              dateFilter === 'yesterday' ? 'Yesterday' :
-              dateFilter === 'last7days' ? 'Last 7 Days' :
-              dateFilter === 'last30days' ? 'Last 30 Days' :
-              dateFilter === 'alltime' ? 'All Time' :
-              'Custom Range'
+                dateFilter === 'yesterday' ? 'Yesterday' :
+                  dateFilter === 'last7days' ? 'Last 7 Days' :
+                    dateFilter === 'last30days' ? 'Last 30 Days' :
+                      dateFilter === 'alltime' ? 'All Time' :
+                        'Custom Range'
             }
           />
           <MetricCard
@@ -779,11 +771,11 @@ function AnalyticsDashboard() {
             value={overview.shares.total}
             subtitle={
               dateFilter === 'today' ? 'Today' :
-              dateFilter === 'yesterday' ? 'Yesterday' :
-              dateFilter === 'last7days' ? 'Last 7 Days' :
-              dateFilter === 'last30days' ? 'Last 30 Days' :
-              dateFilter === 'alltime' ? 'All Time' :
-              'Custom Range'
+                dateFilter === 'yesterday' ? 'Yesterday' :
+                  dateFilter === 'last7days' ? 'Last 7 Days' :
+                    dateFilter === 'last30days' ? 'Last 30 Days' :
+                      dateFilter === 'alltime' ? 'All Time' :
+                        'Custom Range'
             }
           />
           <MetricCard
@@ -791,11 +783,11 @@ function AnalyticsDashboard() {
             value={overview.saves.total}
             subtitle={
               dateFilter === 'today' ? 'Today' :
-              dateFilter === 'yesterday' ? 'Yesterday' :
-              dateFilter === 'last7days' ? 'Last 7 Days' :
-              dateFilter === 'last30days' ? 'Last 30 Days' :
-              dateFilter === 'alltime' ? 'All Time' :
-              'Custom Range'
+                dateFilter === 'yesterday' ? 'Yesterday' :
+                  dateFilter === 'last7days' ? 'Last 7 Days' :
+                    dateFilter === 'last30days' ? 'Last 30 Days' :
+                      dateFilter === 'alltime' ? 'All Time' :
+                        'Custom Range'
             }
           />
         </div>
@@ -816,21 +808,19 @@ function AnalyticsDashboard() {
             <div className="flex space-x-2">
               <button
                 onClick={() => setViewMode('daily')}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
-                  viewMode === 'daily'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                className={`px-3 py-1 text-sm rounded transition-colors ${viewMode === 'daily'
+                  ? 'bg-purple-600 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
               >
                 Daily Growth
               </button>
               <button
                 onClick={() => setViewMode('cumulative')}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
-                  viewMode === 'cumulative'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                className={`px-3 py-1 text-sm rounded transition-colors ${viewMode === 'cumulative'
+                  ? 'bg-purple-600 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
               >
                 Cumulative
               </button>
@@ -999,6 +989,56 @@ function AnalyticsDashboard() {
           </div>
         </div>
       )}
+
+      {/* Mixpanel Charts Section */}
+      {mixpanelData && (
+        <div className="mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Mixpanel: Installs over Time */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mixpanel: Installs over Time</h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={mixpanelData["Installs"]?.[0]?.data || []}>
+                  <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
+                  <YAxis stroke="#9ca3af" fontSize={11} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                  />
+                  <Line type="monotone" dataKey="y" stroke="#ec4899" strokeWidth={2} name="Installs" dot={true} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Mixpanel: Daily Trial Started */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mixpanel: Daily Trial Started</h2>
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={mixpanelData["Daily Trial Started"]?.[0]?.data || []}>
+                  <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
+                  <YAxis stroke="#9ca3af" fontSize={11} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                  />
+                  <Line type="monotone" dataKey="y" stroke="#10b981" strokeWidth={2} name="Trial Started" dot={true} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Analytics Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -1233,11 +1273,10 @@ function AnalyticsDashboard() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        video.performance_multiplier > 1
-                          ? 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-300'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${video.performance_multiplier > 1
+                        ? 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-300'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                        }`}>
                         {video.performance_indicator}
                       </span>
                     </td>
@@ -1246,11 +1285,10 @@ function AnalyticsDashboard() {
                     <td className="py-3 px-4 text-sm dark:text-white">{video.comments}</td>
                     <td className="py-3 px-4 text-sm dark:text-white">{formatNumber(video.saves)}</td>
                     <td className="py-3 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        video.is_spark_ad
-                          ? 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-700'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${video.is_spark_ad
+                        ? 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-700'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                        }`}>
                         {video.is_spark_ad ? 'Yes' : 'No'}
                       </span>
                     </td>
