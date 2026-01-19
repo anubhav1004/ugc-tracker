@@ -1214,11 +1214,13 @@ async def get_historical_growth_split(
         if not snapshots:
             # FALLBACK: If no historical snapshots exist, use posted_at date and current views
             # This provides a temporary visualization until historical data is compiled
+            # Use current time (not midnight) to include videos posted today
+            current_time = datetime.utcnow()
             videos = db.query(Video).filter(
                 Video.id.in_(tracked_video_ids),
                 Video.posted_at.isnot(None),
                 Video.posted_at >= start_date,
-                Video.posted_at <= end_date
+                Video.posted_at <= current_time
             ).all()
 
             # Group videos by their posted_at date and sum their current views
