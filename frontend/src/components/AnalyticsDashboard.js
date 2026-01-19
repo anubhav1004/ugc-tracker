@@ -253,7 +253,9 @@ function AnalyticsDashboard() {
       ] = results.map(res => res.status === 'fulfilled' ? res.value : { data: null });
 
       // Update all data in one state update to reduce re-renders
-      setData({
+      // Use functional update to preserve data that's loaded separately (like Mixpanel)
+      setData(prev => ({
+        ...prev,
         overview: overviewRes?.data,
         viewsOverTime: viewsRes?.data || [],
         mostViral: viralRes?.data || [],
@@ -263,9 +265,8 @@ function AnalyticsDashboard() {
         videoStats: statsRes?.data || [],
         analyticsData: analyticsRes?.data || [],
         organicOverview: organicRes?.data,
-        adsOverview: adsRes?.data,
-        mixpanelData: null  // Loaded separately
-      });
+        adsOverview: adsRes?.data
+      }));
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -278,21 +279,44 @@ function AnalyticsDashboard() {
   }, [fetchAllData]);
 
   // Lazy load Mixpanel data separately (cached for 1 hour on backend)
+  const mixpanelFetchedRef = React.useRef(false);
+
   useEffect(() => {
+    // Skip if already fetched (handles StrictMode double-mount)
+    if (mixpanelFetchedRef.current) {
+      return;
+    }
+
+    let isMounted = true;
+    const controller = new AbortController();
+
     const fetchMixpanelData = async () => {
       setMixpanelLoading(true);
       try {
-        const response = await axios.get(`${API_URL}/api/analytics/mixpanel`);
-        setData(prev => ({ ...prev, mixpanelData: response.data }));
+        const response = await axios.get(`${API_URL}/api/analytics/mixpanel`, {
+          signal: controller.signal
+        });
+        if (isMounted) {
+          setData(prev => ({ ...prev, mixpanelData: response.data }));
+          mixpanelFetchedRef.current = true;
+        }
       } catch (error) {
-        console.error('Error fetching Mixpanel data:', error);
+        if (error.name !== 'AbortError' && error.name !== 'CanceledError') {
+          console.error('Error fetching Mixpanel data:', error);
+        }
       } finally {
-        setMixpanelLoading(false);
+        if (isMounted) {
+          setMixpanelLoading(false);
+        }
       }
     };
-    // Delay slightly to prioritize initial render
-    const timer = setTimeout(fetchMixpanelData, 100);
-    return () => clearTimeout(timer);
+
+    fetchMixpanelData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, []);
 
   // Sync URL param with context state
@@ -963,9 +987,9 @@ function AnalyticsDashboard() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">Loading Mixpanel data...</p>
                   </div>
                 </div>
-              ) : (
+              ) : mixpanelData && mixpanelData["Installs"]?.[0]?.data ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={mixpanelData["Installs"]?.[0]?.data || []}>
+                  <LineChart data={mixpanelData["Installs"][0].data}>
                     <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
                     <YAxis stroke="#9ca3af" fontSize={11} />
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
@@ -980,6 +1004,10 @@ function AnalyticsDashboard() {
                     <Line type="monotone" dataKey="y" stroke="#ec4899" strokeWidth={2} name="Installs" dot={true} />
                   </LineChart>
                 </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[250px]">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No Mixpanel data available</p>
+                </div>
               )}
             </div>
 
@@ -993,9 +1021,9 @@ function AnalyticsDashboard() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">Loading Mixpanel data...</p>
                   </div>
                 </div>
-              ) : (
+              ) : mixpanelData && mixpanelData["Daily Trial Started"]?.[0]?.data ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={mixpanelData["Daily Trial Started"]?.[0]?.data || []}>
+                  <LineChart data={mixpanelData["Daily Trial Started"][0].data}>
                     <XAxis dataKey="x" stroke="#9ca3af" fontSize={11} />
                     <YAxis stroke="#9ca3af" fontSize={11} />
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
@@ -1010,6 +1038,10 @@ function AnalyticsDashboard() {
                     <Line type="monotone" dataKey="y" stroke="#10b981" strokeWidth={2} name="Trial Started" dot={true} />
                   </LineChart>
                 </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[250px]">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No Mixpanel data available</p>
+                </div>
               )}
             </div>
           </div>
