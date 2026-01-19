@@ -616,7 +616,7 @@ def save_video_snapshot(db: Session, video: Video):
         existing_snapshot.likes = video.likes
         existing_snapshot.comments = video.comments
         existing_snapshot.shares = video.shares
-        existing_snapshot.saves = video.saves
+        existing_snapshot.saves = video.bookmarks or 0
     else:
         # Get yesterday's snapshot to calculate growth
         yesterday = today - timedelta(days=1)
@@ -645,7 +645,7 @@ def save_video_snapshot(db: Session, video: Video):
             likes=video.likes,
             comments=video.comments,
             shares=video.shares,
-            saves=video.saves,
+            saves=video.bookmarks or 0,
             views_growth=max(0, views_growth),  # Ensure non-negative
             likes_growth=max(0, likes_growth),
             comments_growth=max(0, comments_growth),
