@@ -502,17 +502,45 @@ async def get_analytics_timeseries(
     return result
 
 
+# In-memory cache for Mixpanel data (1 hour TTL)
+_mixpanel_cache = {
+    "data": None,
+    "timestamp": None
+}
+MIXPANEL_CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
 @app.get("/api/analytics/mixpanel")
 async def get_mixpanel_analytics():
-    """Get latest analytics from Mixpanel dashboard"""
+    """Get latest analytics from Mixpanel dashboard (cached for 1 hour)"""
+    global _mixpanel_cache
+    
+    # Check if cache is valid
+    if _mixpanel_cache["data"] is not None and _mixpanel_cache["timestamp"] is not None:
+        cache_age = (datetime.utcnow() - _mixpanel_cache["timestamp"]).total_seconds()
+        if cache_age < MIXPANEL_CACHE_TTL_SECONDS:
+            logger.info(f"Returning cached Mixpanel data (age: {cache_age:.0f}s)")
+            return _mixpanel_cache["data"]
+    
+    # Cache miss or expired - fetch fresh data
     url = "https://mixpanel.com/p/SJdKzRbuddFHjaHtbUvtrk"
     
     try:
+        logger.info("Fetching fresh Mixpanel data (cache miss or expired)")
         async with MixpanelScraper(url) as scraper:
             data = await scraper.scrape_data()
+            
+            # Update cache
+            _mixpanel_cache["data"] = data
+            _mixpanel_cache["timestamp"] = datetime.utcnow()
+            
             return data
     except Exception as e:
         logger.error(f"Mixpanel scraping failed: {e}")
+        # Return stale cache if available
+        if _mixpanel_cache["data"] is not None:
+            logger.info("Returning stale Mixpanel cache due to scraping error")
+            return _mixpanel_cache["data"]
         raise HTTPException(status_code=500, detail="Failed to fetch Mixpanel data")
 
 
@@ -1341,8 +1369,8 @@ async def get_virality_analysis(
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
-    # Query videos in date range
-    query = db.query(Video).filter(
+    # Only fetch the views column instead of full Video objects
+    query = db.query(Video.views).filter(
         Video.posted_at.isnot(None),
         Video.posted_at >= start_date,
         Video.posted_at <= end_date
@@ -1362,9 +1390,9 @@ async def get_virality_analysis(
     elif metric_type == "ads":
         query = query.filter(Video.is_spark_ad == True)
 
-    videos = query.all()
+    view_rows = query.all()
 
-    if not videos:
+    if not view_rows:
         return {
             "below_1x": 0,
             "1x_to_5x": 0,
@@ -1376,7 +1404,7 @@ async def get_virality_analysis(
         }
 
     # Calculate median views
-    view_counts = sorted([v.views for v in videos])
+    view_counts = sorted([r.views for r in view_rows])
     median_views = view_counts[len(view_counts) // 2]
 
     # Categorize videos by virality multiplier
@@ -1390,11 +1418,11 @@ async def get_virality_analysis(
         "above_100x": 0
     }
 
-    for video in videos:
+    for row in view_rows:
         if median_views == 0:
             continue
 
-        multiplier = video.views / median_views
+        multiplier = row.views / median_views
 
         if multiplier < 1:
             categories["below_1x"] += 1
@@ -1428,8 +1456,8 @@ async def get_duration_analysis(
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
 
-    # Query videos in date range with duration
-    query = db.query(Video).filter(
+    # Only fetch duration and views instead of full Video objects
+    query = db.query(Video.duration, Video.views).filter(
         Video.duration != None,
         Video.posted_at.isnot(None),
         Video.posted_at >= start_date,
@@ -1450,9 +1478,9 @@ async def get_duration_analysis(
     elif metric_type == "ads":
         query = query.filter(Video.is_spark_ad == True)
 
-    videos = query.all()
+    video_rows = query.all()
 
-    if not videos:
+    if not video_rows:
         return []
 
     # Group by duration ranges
@@ -1466,22 +1494,22 @@ async def get_duration_analysis(
         "60+": []
     }
 
-    for video in videos:
-        duration = video.duration
+    for row in video_rows:
+        duration = row.duration
         if duration < 5:
-            duration_groups["0-5"].append(video.views)
+            duration_groups["0-5"].append(row.views)
         elif duration < 10:
-            duration_groups["5-10"].append(video.views)
+            duration_groups["5-10"].append(row.views)
         elif duration < 20:
-            duration_groups["10-20"].append(video.views)
+            duration_groups["10-20"].append(row.views)
         elif duration < 30:
-            duration_groups["20-30"].append(video.views)
+            duration_groups["20-30"].append(row.views)
         elif duration < 45:
-            duration_groups["30-45"].append(video.views)
+            duration_groups["30-45"].append(row.views)
         elif duration < 60:
-            duration_groups["45-60"].append(video.views)
+            duration_groups["45-60"].append(row.views)
         else:
-            duration_groups["60+"].append(video.views)
+            duration_groups["60+"].append(row.views)
 
     # Calculate average views per duration range
     result = []
@@ -1605,27 +1633,24 @@ async def get_video_stats(
     if not videos:
         return []
 
-    # Calculate average views for baseline (using same filter and date range)
-    all_videos_query = db.query(Video).filter(
+    # Calculate average views for baseline using SQL AVG() - much faster than loading all videos
+    avg_query = db.query(func.avg(Video.views)).filter(
         Video.posted_at.isnot(None),
         Video.posted_at >= start_date,
         Video.posted_at <= end_date
     )
     # Apply collection filter
-    all_videos_query = apply_collection_filter(all_videos_query, collection_id, db)
+    avg_query = apply_collection_filter(avg_query, collection_id, db)
 
     if platform:
         platforms = [p.strip().lower() for p in platform.split(',')]
-        all_videos_query = all_videos_query.filter(Video.platform.in_(platforms))
+        avg_query = avg_query.filter(Video.platform.in_(platforms))
     if metric_type == "organic":
-        all_videos_query = all_videos_query.filter(Video.is_spark_ad == False)
+        avg_query = avg_query.filter(Video.is_spark_ad == False)
     elif metric_type == "ads":
-        all_videos_query = all_videos_query.filter(Video.is_spark_ad == True)
-    all_videos = all_videos_query.all()
-    if not all_videos:
-        avg_views = 0
-    else:
-        avg_views = sum(v.views for v in all_videos) / len(all_videos)
+        avg_query = avg_query.filter(Video.is_spark_ad == True)
+    
+    avg_views = avg_query.scalar() or 0
 
     result = []
     for video in videos:
