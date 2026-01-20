@@ -2382,6 +2382,46 @@ async def fix_missing_accounts(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/debug/snapshots")
+async def get_snapshot_summary(db: Session = Depends(get_db)):
+    """Debug endpoint to check VideoHistory snapshot data"""
+    from sqlalchemy import func
+
+    # Get total snapshots
+    total_snapshots = db.query(func.count(VideoHistory.id)).scalar()
+
+    # Get snapshots by date
+    snapshots_by_date = db.query(
+        VideoHistory.snapshot_date,
+        func.count(VideoHistory.id).label('count'),
+        func.sum(VideoHistory.views_growth).label('total_views_growth')
+    ).group_by(VideoHistory.snapshot_date).order_by(VideoHistory.snapshot_date.desc()).limit(10).all()
+
+    # Get most recent snapshots
+    recent_snapshots = db.query(VideoHistory).order_by(VideoHistory.snapshot_date.desc()).limit(5).all()
+
+    return {
+        "total_snapshots": total_snapshots,
+        "snapshots_by_date": [
+            {
+                "date": str(s[0]),
+                "count": s[1],
+                "total_views_growth": s[2]
+            }
+            for s in snapshots_by_date
+        ],
+        "recent_snapshots": [
+            {
+                "video_id": s.video_id,
+                "snapshot_date": str(s.snapshot_date),
+                "views": s.views,
+                "views_growth": s.views_growth
+            }
+            for s in recent_snapshots
+        ]
+    }
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and start scheduler on startup"""
