@@ -2391,6 +2391,31 @@ async def startup_event():
     init_db()
     logger.info("Database initialized")
 
+    # Check if today's scrape has run, if not run it immediately
+    # This ensures scraping happens even if the app restarts after the scheduled time
+    try:
+        db = SessionLocal()
+        today_date = datetime.utcnow().date()
+
+        # Check if any snapshots were created today
+        today_snapshot = db.query(VideoHistory).filter(
+            VideoHistory.snapshot_date >= today_date
+        ).first()
+
+        if not today_snapshot:
+            logger.info("No snapshots found for today - running daily scrape immediately")
+            # Run scrape in background thread to not block startup
+            import threading
+            scrape_thread = threading.Thread(target=daily_scrape_all_accounts)
+            scrape_thread.daemon = True
+            scrape_thread.start()
+        else:
+            logger.info(f"Today's scrape already completed - found snapshots from {today_snapshot.snapshot_date}")
+
+        db.close()
+    except Exception as e:
+        logger.error(f"Error checking for today's scrape: {str(e)}")
+
     # Schedule daily scraping at 2 AM UTC every day
     scheduler.add_job(
         daily_scrape_all_accounts,
