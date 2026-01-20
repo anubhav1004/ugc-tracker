@@ -2422,7 +2422,7 @@ async def scrape_next_account(db: Session = Depends(get_db)):
 
         # Scrape account
         scraper = URLScraper()
-        videos = scraper.scrape_url(url)
+        videos = await scraper.scrape_url(url)
 
         if not videos:
             # Mark as scraped even if no videos found
