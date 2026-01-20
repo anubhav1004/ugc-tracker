@@ -2420,9 +2420,10 @@ async def scrape_next_account(db: Session = Depends(get_db)):
 
         logger.info(f"Scraping {account.platform}/@{account.username}...")
 
-        # Scrape account
+        # Scrape account profile (all videos)
         scraper = URLScraper()
-        videos = await scraper.scrape_url(url)
+        result = await scraper.scrape_profile(url)
+        videos = result.get('videos', [])
 
         if not videos:
             # Mark as scraped even if no videos found
