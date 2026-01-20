@@ -161,7 +161,7 @@ function AnalyticsDashboard() {
   const [metricType, setMetricType] = useState('total'); // 'total', 'organic', 'ads'
 
   // Video Stats sorting and filtering
-  const [sortField, setSortField] = useState('views'); // 'views', 'engagement_rate', 'likes', 'comments', 'shares', 'saves'
+  const [sortField, setSortField] = useState('views'); // 'views', 'engagement_rate', 'likes', 'comments', 'shares', 'saves', 'posted_at'
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc', 'desc'
   const [sparkAdFilter, setSparkAdFilter] = useState('all'); // 'all', 'spark_ads', 'organic'
 
@@ -472,6 +472,12 @@ function AnalyticsDashboard() {
       if (sortField === 'engagement_rate') {
         aValue = parseFloat(aValue);
         bValue = parseFloat(bValue);
+      }
+
+      // Handle date sorting
+      if (sortField === 'posted_at') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
       }
 
       if (sortDirection === 'asc') {
@@ -1319,6 +1325,15 @@ function AnalyticsDashboard() {
                       {getSortIcon('saves')}
                     </div>
                   </th>
+                  <th
+                    className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400 cursor-pointer hover:text-purple-600 dark:hover:text-purple-400"
+                    onClick={() => handleSort('posted_at')}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Posted Date</span>
+                      {getSortIcon('posted_at')}
+                    </div>
+                  </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400">Spark Ads</th>
                 </tr>
               </thead>
@@ -1358,6 +1373,9 @@ function AnalyticsDashboard() {
                     <td className="py-3 px-4 text-sm dark:text-white">{formatNumber(video.likes)}</td>
                     <td className="py-3 px-4 text-sm dark:text-white">{video.comments}</td>
                     <td className="py-3 px-4 text-sm dark:text-white">{formatNumber(video.saves)}</td>
+                    <td className="py-3 px-4 text-sm dark:text-white">
+                      {video.posted_at ? new Date(video.posted_at).toLocaleDateString() : 'N/A'}
+                    </td>
                     <td className="py-3 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${video.is_spark_ad
                         ? 'bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-700'
