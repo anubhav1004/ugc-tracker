@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct
+from sqlalchemy import func, distinct, or_
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -1257,9 +1257,10 @@ async def get_historical_growth_split(
                 daily_data[date_key]['views_growth'] += video.views
         else:
             # Use historical snapshots (normal behavior)
+            # Sum up TOTAL VIEWS for each day (not growth)
             for snapshot in snapshots:
                 date_key = snapshot.snapshot_date.date()
-                daily_data[date_key]['views_growth'] += snapshot.views_growth
+                daily_data[date_key]['views_growth'] += snapshot.views
 
         # Generate complete date range
         result = []
@@ -2380,6 +2381,178 @@ async def fix_missing_accounts(db: Session = Depends(get_db)):
         logger.error(f"Error fixing missing accounts: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/admin/scrape-next-account")
+async def scrape_next_account(db: Session = Depends(get_db)):
+    """
+    Scrape ONE account that hasn't been scraped today.
+    Call this endpoint multiple times to incrementally scrape all accounts.
+    """
+    try:
+        today = datetime.utcnow().date()
+
+        # Find an account that hasn't been scraped today
+        account = db.query(Account).filter(
+            Account.is_active == True,
+            or_(
+                Account.last_scraped.is_(None),
+                func.date(Account.last_scraped) < today
+            )
+        ).first()
+
+        if not account:
+            return {
+                "status": "complete",
+                "message": "All accounts have been scraped today"
+            }
+
+        # Construct profile URL
+        if account.platform == 'tiktok':
+            url = f"https://www.tiktok.com/@{account.username}"
+        elif account.platform == 'instagram':
+            url = f"https://www.instagram.com/{account.username}/"
+        else:
+            return {
+                "status": "error",
+                "message": f"Unsupported platform: {account.platform}"
+            }
+
+        logger.info(f"Scraping {account.platform}/@{account.username}...")
+
+        # Scrape account
+        scraper = URLScraper()
+        videos = scraper.scrape_url(url)
+
+        if not videos:
+            # Mark as scraped even if no videos found
+            account.last_scraped = datetime.utcnow()
+            db.commit()
+            return {
+                "status": "success",
+                "account": account.username,
+                "platform": account.platform,
+                "videos_processed": 0,
+                "message": "No videos found"
+            }
+
+        # Process each video
+        videos_updated = 0
+        for video_data in videos:
+            video = db.query(Video).filter(Video.id == video_data['id']).first()
+
+            if video:
+                # Update existing video
+                video.views = video_data.get('views', video.views)
+                video.likes = video_data.get('likes', video.likes)
+                video.comments = video_data.get('comments', video.comments)
+                video.shares = video_data.get('shares', video.shares)
+                video.scraped_at = datetime.utcnow()
+
+                # Save snapshot
+                save_video_snapshot(db, video)
+                videos_updated += 1
+            else:
+                # Create new video
+                new_video = Video(**video_data)
+                db.add(new_video)
+                db.commit()
+                db.refresh(new_video)
+
+                # Save snapshot
+                save_video_snapshot(db, new_video)
+                videos_updated += 1
+
+        # Mark account as scraped
+        account.last_scraped = datetime.utcnow()
+        db.commit()
+
+        # Count remaining accounts
+        remaining = db.query(func.count(Account.id)).filter(
+            Account.is_active == True,
+            or_(
+                Account.last_scraped.is_(None),
+                func.date(Account.last_scraped) < today
+            )
+        ).scalar()
+
+        return {
+            "status": "success",
+            "account": account.username,
+            "platform": account.platform,
+            "videos_processed": videos_updated,
+            "remaining_accounts": remaining,
+            "message": f"Scraped {videos_updated} videos from @{account.username}"
+        }
+
+    except Exception as e:
+        logger.error(f"Error scraping next account: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/admin/scrape-status")
+async def get_scrape_status(db: Session = Depends(get_db)):
+    """Check how many accounts still need scraping today"""
+    today = datetime.utcnow().date()
+
+    total_accounts = db.query(func.count(Account.id)).filter(Account.is_active == True).scalar()
+
+    remaining = db.query(func.count(Account.id)).filter(
+        Account.is_active == True,
+        or_(
+            Account.last_scraped.is_(None),
+            func.date(Account.last_scraped) < today
+        )
+    ).scalar()
+
+    completed = total_accounts - remaining
+
+    return {
+        "total_accounts": total_accounts,
+        "completed_today": completed,
+        "remaining": remaining,
+        "progress_percentage": round((completed / total_accounts * 100) if total_accounts > 0 else 0, 2)
+    }
+
+
+@app.get("/api/debug/snapshots")
+async def get_snapshot_summary(db: Session = Depends(get_db)):
+    """Debug endpoint to check VideoHistory snapshot data"""
+    from sqlalchemy import func
+
+    # Get total snapshots
+    total_snapshots = db.query(func.count(VideoHistory.id)).scalar()
+
+    # Get snapshots by date
+    snapshots_by_date = db.query(
+        VideoHistory.snapshot_date,
+        func.count(VideoHistory.id).label('count'),
+        func.sum(VideoHistory.views_growth).label('total_views_growth')
+    ).group_by(VideoHistory.snapshot_date).order_by(VideoHistory.snapshot_date.desc()).limit(10).all()
+
+    # Get most recent snapshots
+    recent_snapshots = db.query(VideoHistory).order_by(VideoHistory.snapshot_date.desc()).limit(5).all()
+
+    return {
+        "total_snapshots": total_snapshots,
+        "snapshots_by_date": [
+            {
+                "date": str(s[0]),
+                "count": s[1],
+                "total_views_growth": s[2]
+            }
+            for s in snapshots_by_date
+        ],
+        "recent_snapshots": [
+            {
+                "video_id": s.video_id,
+                "snapshot_date": str(s.snapshot_date),
+                "views": s.views,
+                "views_growth": s.views_growth
+            }
+            for s in recent_snapshots
+        ]
+    }
 
 
 @app.on_event("startup")
