@@ -1257,9 +1257,10 @@ async def get_historical_growth_split(
                 daily_data[date_key]['views_growth'] += video.views
         else:
             # Use historical snapshots (normal behavior)
+            # Sum up TOTAL VIEWS for each day (not growth)
             for snapshot in snapshots:
                 date_key = snapshot.snapshot_date.date()
-                daily_data[date_key]['views_growth'] += snapshot.views_growth
+                daily_data[date_key]['views_growth'] += snapshot.views
 
         # Generate complete date range
         result = []
