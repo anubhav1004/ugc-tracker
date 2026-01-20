@@ -45,6 +45,29 @@ class MixpanelScraper:
         try:
             page = await self.context.new_page()
             
+            # Store captured API responses in a list (Mixpanel calls the same endpoint multiple times)
+            captured_responses = []
+            
+            # Intercept network requests to capture Mixpanel API data
+            async def handle_response(response):
+                try:
+                    url = response.url
+                    if 'api' in url and response.status == 200:
+                        content_type = response.headers.get('content-type', '')
+                        if 'json' in content_type:
+                            try:
+                                json_data = await response.json()
+                                captured_responses.append({
+                                    'url': url,
+                                    'data': json_data
+                                })
+                            except:
+                                pass
+                except:
+                    pass
+            
+            page.on('response', handle_response)
+            
             # Navigate to dashboard
             await page.goto(self.dashboard_url, wait_until='networkidle', timeout=90000)
             
@@ -54,121 +77,82 @@ class MixpanelScraper:
             # Wait for content to render
             await page.wait_for_timeout(10000)
             
-            # Extract data from Highcharts global instances or by parsing SVG/DOM
-            data = await page.evaluate(r'''() => {
-                const results = {};
-                
-                // Helper to parse dates like "Jan 19", "Dec 20"
-                const parseDate = (str) => {
-                    const months = {
-                        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-                    };
-                    const parts = str.trim().split(' ');
-                    if (parts.length < 2) return null;
-                    const month = months[parts[0]];
-                    const day = parseInt(parts[1]);
-                    if (month === undefined || isNaN(day)) return null;
-                    
-                    const date = new Date();
-                    const now = new Date();
-                    date.setMonth(month);
-                    date.setDate(day);
-                    date.setHours(0, 0, 0, 0);
-                    
-                    if (month > now.getMonth()) {
-                        date.setFullYear(now.getFullYear() - 1);
-                    } else {
-                        date.setFullYear(now.getFullYear());
-                    }
-                    return date;
-                };
-
-                const formatDate = (date) => {
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    return `${months[date.getMonth()]} ${date.getDate()}`;
-                };
-
-                const now = new Date();
-                const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-                thirtyDaysAgo.setHours(0, 0, 0, 0);
-
-                // Iterate over dashboard cards
-                document.querySelectorAll('mp-dash-card').forEach((card, index) => {
-                    const titleEl = card.querySelector('.report-name, .card-title, h2, h3');
-                    let rawTitle = titleEl ? titleEl.textContent.trim() : `Chart ${index}`;
-                    
-                    // Standardize titles
-                    let title = rawTitle;
-                    if (rawTitle.includes('Installs')) title = 'Installs';
-                    else if (rawTitle.includes('Trial Started')) title = 'Daily Trial Started';
-                    else return; // Skip other charts (like Conversion Funnel)
-
-                    // Time-series Chart Detection (SVG/Highcharts)
-                    const svg = card.querySelector('svg');
-                    if (svg) {
-                        // Sort labels by x coordinate to ensure left-to-right order
-                        const labels = Array.from(svg.querySelectorAll('.highcharts-xaxis-labels text'))
-                            .map(el => ({
-                                text: el.textContent,
-                                x: parseFloat(el.getAttribute('x') || 0),
-                                date: parseDate(el.textContent)
-                            }))
-                            .filter(l => l.date !== null)
-                            .sort((a, b) => a.x - b.x);
-
-                        const yLabels = Array.from(svg.querySelectorAll('.highcharts-yaxis-labels text'))
-                                    .map(el => parseFloat(el.textContent.replace(/[^\d\.]/g, '')))
-                                    .filter(v => !isNaN(v))
-                                    .sort((a, b) => a - b);
-                        const maxY = yLabels[yLabels.length - 1] || 100;
-                        
-                        const tempPoints = [];
-                        const seriesPath = svg.querySelector('.highcharts-series path');
-                        if (seriesPath) {
-                            const dAttr = seriesPath.getAttribute('d');
-                            const matches = dAttr.match(/[ML] ([\d\.]+) ([\d\.]+)/g);
-                            if (matches && labels.length >= 2) {
-                                const yAxisHeight = 200; // Heuristic
-                                const firstLabel = labels[0];
-                                const lastLabel = labels[labels.length - 1];
-                                const xSpan = lastLabel.x - firstLabel.x;
-                                const timeSpan = lastLabel.date - firstLabel.date;
-
-                                matches.forEach((m) => {
-                                    const parts = m.split(' ');
-                                    const px = parseFloat(parts[1]);
-                                    const py = parseFloat(parts[2]);
-                                    const val = Math.round(Math.max(0, (yAxisHeight - py) / yAxisHeight * maxY));
-                                    
-                                    const timeOffset = ((px - firstLabel.x) / xSpan) * timeSpan;
-                                    const pointDate = new Date(firstLabel.date.getTime() + timeOffset);
-                                    
-                                    if (pointDate >= thirtyDaysAgo) {
-                                        tempPoints.push({ 
-                                            px: px, // Keep px for sorting
-                                            x: formatDate(pointDate), 
-                                            y: val 
-                                        });
-                                    }
-                                });
-                            }
-                        }
-                        
-                        const sortedPoints = tempPoints
-                            .sort((a, b) => a.px - b.px)
-                            .map(p => ({ x: p.x, y: p.y }));
-                            
-                        if (sortedPoints.length > 0) {
-                            results[title] = [{ name: 'Scraped Data', data: sortedPoints }];
-                        }
-                    }
-                });
-                return results;
-            }''')
+            # Extract data using the network interception approach
+            # We don't need DOM parsing anymore as API capture is exact
+            
+            # Wait for content to render to ensure all API calls are made
+            await page.wait_for_timeout(10000)
             
             await page.close()
-            return data
+            
+            # Process captured API responses
+            results = {}
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            
+            from datetime import datetime as dt_class
+            
+            def format_mixpanel_date(date_str):
+                # Handle ISO8601 like "2026-01-13T00:00:00-05:00"
+                try:
+                    # Strip timezone for simple parsing or use fromisoformat if available
+                    clean_date = date_str.split('T')[0]
+                    parsed = dt_class.strptime(clean_date, '%Y-%m-%d')
+                    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    return f"{months[parsed.month - 1]} {parsed.day}", clean_date
+                except:
+                    return date_str, date_str
+
+            for entry in captured_responses:
+                url = entry['url']
+                api_data = entry['data']
+                
+                if 'dashboard-cards' in url and isinstance(api_data, dict):
+                    # Mixpanel dashboard-cards results are often nested in results.series
+                    inner_results = api_data.get('results', {})
+                    series_map = inner_results.get('series', {})
+                    
+                    if not series_map:
+                        continue
+                        
+                    for series_name, data_map in series_map.items():
+                        # Determine if this is a series we care about
+                        target_title = None
+                        if 'apk install' in series_name.lower() or 'uniques of install' in series_name.lower():
+                            target_title = 'Installs'
+                        elif 'trial_started' in series_name.lower():
+                            target_title = 'Daily Trial Started'
+                        
+                        if not target_title:
+                            continue
+                            
+                        # Extract and sort data points by date
+                        data_points = []
+                        # data_map is { "ISO_DATE": value }
+                        sorted_dates = sorted(data_map.keys())
+                        
+                        for d_str in sorted_dates:
+                            val = data_map[d_str]
+                            display_date, iso_date = format_mixpanel_date(d_str)
+                            
+                            # Exclude today
+                            if iso_date == today_str:
+                                continue
+                                
+                            data_points.append({
+                                'x': display_date,
+                                'y': int(val) if val is not None else 0
+                            })
+                        
+                        if data_points:
+                            results[target_title] = [{'name': 'Scraped Data', 'data': data_points}]
+            
+            # Log results found
+            if results:
+                print(f"Successfully extracted data from Mixpanel API for: {list(results.keys())}")
+                return results
+            else:
+                print("Failed to find relevant chart data in captured API responses.")
+                return {}
 
         except Exception as e:
             print(f"Error scraping Mixpanel: {e}")
