@@ -2440,14 +2440,17 @@ async def scrape_next_account(db: Session = Depends(get_db)):
         # Process each video
         videos_updated = 0
         for video_data in videos:
-            video = db.query(Video).filter(Video.id == video_data['id']).first()
+            # Remove internal fields that aren't part of the Video model
+            video_data_clean = {k: v for k, v in video_data.items() if not k.startswith('_')}
+
+            video = db.query(Video).filter(Video.id == video_data_clean['id']).first()
 
             if video:
                 # Update existing video
-                video.views = video_data.get('views', video.views)
-                video.likes = video_data.get('likes', video.likes)
-                video.comments = video_data.get('comments', video.comments)
-                video.shares = video_data.get('shares', video.shares)
+                video.views = video_data_clean.get('views', video.views)
+                video.likes = video_data_clean.get('likes', video.likes)
+                video.comments = video_data_clean.get('comments', video.comments)
+                video.shares = video_data_clean.get('shares', video.shares)
                 video.scraped_at = datetime.utcnow()
 
                 # Save snapshot
@@ -2455,7 +2458,7 @@ async def scrape_next_account(db: Session = Depends(get_db)):
                 videos_updated += 1
             else:
                 # Create new video
-                new_video = Video(**video_data)
+                new_video = Video(**video_data_clean)
                 db.add(new_video)
                 db.commit()
                 db.refresh(new_video)
